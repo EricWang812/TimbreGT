@@ -61,12 +61,13 @@ function Shell() {
     <>
       <a className="skip-link" href="#main-content" onClick={skipToMain}>Skip to main content</a>
       <SiteHeader onOpenCart={() => setCartOpen(true)} />
-      <main id="main-content" tabIndex={-1}>
+      {/* key: each route mounts fresh, so the .route-enter fade (styles.css) replays on navigation. */}
+      <main id="main-content" tabIndex={-1} key={route.name} className="route-enter">
         {route.name === "shop" && <Shop catalog={catalog} />}
-        {route.name === "checkout" && <Checkout />}
+        {route.name === "checkout" && <Checkout products={catalog.byId} />}
         {route.name === "baseline" && <Baseline />}
         {route.name === "dashboard" && <Dashboard />}
-        {route.name === "receipt" && <Receipt key={route.instructionId} instructionId={route.instructionId} />}
+        {route.name === "receipt" && <Receipt key={route.instructionId} instructionId={route.instructionId} products={catalog.byId} />}
       </main>
       <footer className="site-footer">
         <p className="note">
