@@ -24,6 +24,16 @@ alternatives considered and why they were rejected.
 
 ---
 
+### 2026-09-26 04:30 - Pre-registration amendment 1 (before scoring)
+
+- **Files:** docs/PREREGISTRATION.md.
+- **What:** Declared, before any embedding or score existed: upsampling of EasyCall's 8 kHz audio to 16 kHz for both configurations, exclusion of the one speaker without a severity label, and using every eligible command as its own template so P1 has about 1,390 genuine trials instead of about 44.
+- **Why:** The metadata showed one take per command per session, which would leave the pre-registered test with almost no statistical power.
+- **Verify:** `git log -- docs/PREREGISTRATION.md` shows this amendment precedes the confirmation run.
+- **Risk/Notes:** Configurations, split, calibration, and the adoption rule are unchanged.
+
+---
+
 ### 2026-09-26 04:10 - Pre-register the fusion confirmation on EasyCall
 
 - **Files:** docs/PREREGISTRATION.md (new).

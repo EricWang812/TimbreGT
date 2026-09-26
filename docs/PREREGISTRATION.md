@@ -71,3 +71,28 @@ Protocol P2 (secondary, reported only): the TORGO text-independent selection
 Different language from TORGO (Italian commands); a single corpus; trials are
 correlated within speakers; severity labels are coarse. A pass is evidence
 that the fusion generalizes beyond TORGO, not a population-level claim.
+
+## Amendment 1 (2026-09-26, before any scoring)
+
+Made after downloading EasyCall and reading only metadata (filenames,
+speakers, severity labels, command counts, durations, levels). No embedding or
+score had been computed. The frozen configurations, split rule, calibration,
+and adoption rule above are unchanged.
+
+1. **Sample rate.** The audio is 8 kHz. Every take is upsampled to 16 kHz with
+   `scipy.signal.resample_poly(x, 2, 1)` before the quality check and before
+   both encoders, identically for R and F. Both therefore see narrowband
+   (telephone-band) audio.
+2. **Unlabeled speaker.** Speaker `f04` has severity `N/A`, so has no group,
+   and is excluded. 54 speakers remain (24 severity 0, 30 severity 1 to 3).
+3. **Protocol P1 uses every eligible command.** Each command has at most about
+   6 takes per speaker, one per recording session, so the original rule gives
+   a single genuine trial per speaker. Instead, every command with at least 6
+   usable takes becomes its own template for that speaker (enrollment: 5
+   takes by seeded filename order; probes: the remaining takes, which are
+   always from other sessions). This matches the live product, where a
+   person enrolls several sounds. Impostor trials for a template: every probe
+   (any command) of every other speaker in the same cohort; a speaker's own
+   other templates are never impostors. Measured eligibility under the live
+   quality check: 23 control and 21 dysarthric speakers, 572 and 696
+   templates, about 696 genuine probes per group before the split.
