@@ -7,7 +7,6 @@ import { FishIcon, HeadphonesIcon, LockIcon, PawIcon, SunIcon, TruckIcon, WavesI
 import { scrollAndFocus } from "../components/jump.js";
 import { useAnnounce } from "../lib/announce.jsx";
 import { formatCents } from "../lib/money.js";
-import { SHOP_SECTIONS, shopOf, useStoreInfo } from "../lib/shops.js";
 
 const SHOP_ICONS = { grocer: FishIcon, tech: HeadphonesIcon, sun: SunIcon, pets: PawIcon };
 const ALL = "all";
@@ -51,14 +50,12 @@ function itemsText(n) {
 function buildShops(products, markets) {
   const list = markets.length ? markets : [{ id: null, name: null, tagline: null }];
   return list.map((shop) => {
-    const stock = shop.id ? products.filter((p) => shopOf(p) === shop.id) : products;
-    const sections = SHOP_SECTIONS[shop.id] ?? Object.values(SHOP_SECTIONS).flat();
-    const groups = sections
-      .map(([key, label, categories]) => [key, label, stock.filter((p) => categories.includes(p.category))])
-      .filter(([, , items]) => items.length > 0);
-    const known = new Set(sections.flatMap(([, , categories]) => categories));
-    const other = stock.filter((p) => !known.has(p.category));
-    if (other.length) groups.push(["other", "More", other]);
+    // Storefront products carry their owning persisted market ID from
+    // GET /storefront/markets/{marketId}/products. No legacy shop mapping.
+    const stock = shop.id ? products.filter((product) => product.market === shop.id) : products;
+    const groups = [...new Set(stock.map((product) => product.category))]
+      .sort()
+      .map((category) => [category, category.replace(/\b\w/g, (letter) => letter.toUpperCase()), stock.filter((p) => p.category === category)]);
     return { ...shop, count: stock.length, groups };
   }).filter((shop) => shop.count > 0);
 }
@@ -85,12 +82,10 @@ function ShopSign({ id, name, tagline, count, pressed, onChoose }) {
   );
 }
 
-export default function Shop({ catalog, onOpenCart }) {
-  const { freeShippingMinCents, markets } = useStoreInfo();
+export default function Shop({ catalog, onOpenCart, selectedMarketId, selectedMarket, onSelectMarket }) {
   const announce = useAnnounce();
-  const shops = buildShops(catalog.products, markets);
-  const [chosen, setChosen] = useState(readSavedShop);
-  const selected = shops.some((s) => s.id === chosen) ? chosen : ALL;
+  const shops = buildShops(catalog.products, selectedMarket ? [selectedMarket] : []);
+  const selected = shops.some((s) => s.id === selectedMarketId) ? selectedMarketId : ALL;
   const visible = selected === ALL ? shops : shops.filter((s) => s.id === selected);
   const boardwalk = shops.length > 1;
 
@@ -99,7 +94,7 @@ export default function Shop({ catalog, onOpenCart }) {
   const entering = useGridEntrance(catalog.status === "ready");
 
   function choose(id) {
-    setChosen(id);
+    onSelectMarket(id === ALL ? (shops[0]?.id ?? "grocer") : id);
     saveShop(id);
     const shop = shops.find((s) => s.id === id);
     announce(shop ? `Showing ${shop.name}, ${itemsText(shop.count)}.` : `Showing every shop, ${itemsText(catalog.products.length)}.`);
@@ -118,6 +113,9 @@ export default function Shop({ catalog, onOpenCart }) {
   let order = 0;   // running card index across sections, for the stagger
   return (
     <>
+      {catalog.switching && <p role="status">Switching market…</p>}
+      {catalog.error && <p className="message-error" role="alert">{catalog.error}</p>}
+      {catalog.status === "ready" && !catalog.products.length && <p className="note">No products available in this market.</p>}
       <div className={`market-band${showVoice || loading ? "" : " is-single"}`}>
         <div className="band-intro">
           <PageHeading>{boardwalk ? "Shop the boardwalk" : "Shop the market"}</PageHeading>
@@ -127,17 +125,14 @@ export default function Shop({ catalog, onOpenCart }) {
               : "Fresh from the coast. Add items by voice, with a tap, or with the keyboard."}
           </p>
           <ul className="fact-pills">
-            {freeShippingMinCents !== null && (
-              <li><TruckIcon size={20} /> Free delivery on orders of {formatCents(freeShippingMinCents).replace(/\.00$/, "")} or more</li>
-            )}
             <li><LockIcon size={20} /> Approve payment with your bank</li>
           </ul>
         </div>
-        {showVoice && <VoiceShopping products={catalog.products} />}
+        {showVoice && <VoiceShopping products={catalog.products} marketId={selectedMarketId} />}
         {loading && <div className="voice-shopping voice-placeholder" aria-hidden="true" />}
       </div>
 
-      {showVoice && <AgenticVoiceShopping onOpenCart={onOpenCart} />}
+      {showVoice && <AgenticVoiceShopping onOpenCart={onOpenCart} marketId={selectedMarketId} />}
 
       {loading && (
         <div className="stack">
@@ -205,7 +200,7 @@ export default function Shop({ catalog, onOpenCart }) {
                   <span className="shop-banner-icon"><Icon size={32} /></span>
                   <div>
                     <h2 id={`shop-${shop.id}`} tabIndex={-1}>{shop.name}</h2>
-                    <p className="shop-banner-tagline">{shop.tagline}</p>
+                    <p className="shop-banner-tagline">{shop.description ?? ""}</p>
                   </div>
                   <p className="shop-banner-count">{itemsText(shop.count)}</p>
                 </div>

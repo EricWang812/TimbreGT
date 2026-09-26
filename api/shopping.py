@@ -4,15 +4,16 @@ import logging
 
 import numpy as np
 import soundfile as sf
-from fastapi import APIRouter, File, HTTPException, UploadFile
+from fastapi import Depends, APIRouter, File, HTTPException, UploadFile
 from pydantic import BaseModel, ConfigDict, Field
 
 from api import asr
 from api.catalog import list_catalog
+from api.catalog import shopping_market
 from api.config import SHOP_AUDIO_MAX_BYTES, SHOP_AUDIO_MAX_SECONDS, SHOP_SAMPLE_RATE, SHOP_TEXT_MAX
 from api.llm import rerank
 
-router = APIRouter()
+router = APIRouter(dependencies=[Depends(shopping_market)])
 log = logging.getLogger(__name__)
 
 

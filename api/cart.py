@@ -2,6 +2,7 @@
 do. Every amount here comes from the catalog, so a client cannot change what
 it pays. All arithmetic is in integer cents."""
 from api.catalog import get_products
+from api.db import fetch_all
 from api.config import FREE_SHIPPING_MIN_CENTS, SHIPPING_CENTS, TAX_RATE_BPS
 
 BPS_DENOMINATOR = 10_000
@@ -26,6 +27,15 @@ def price_cart(lines: list[tuple[str, int]]) -> dict:
     if len(set(ids)) != len(ids):
         raise CartError("each product may appear only once; combine quantities")
     products = get_products(ids)
+    # Storefront marketplace products are additive. Resolve any ID missing
+    # from the legacy catalog from the persisted seller catalog so the
+    # existing browser cart and issuer checkout remain usable during migration.
+    missing = [product_id for product_id in ids if product_id not in products]
+    if missing:
+        marks = ", ".join("?" for _ in missing)
+        products.update({row["id"]: row for row in fetch_all(
+            f"SELECT id, name, price_cents FROM market_products WHERE id IN ({marks})", tuple(missing)
+        )})
     unknown = [pid for pid in ids if pid not in products]
     if unknown:
         raise CartError(f"unknown product ids: {unknown}")

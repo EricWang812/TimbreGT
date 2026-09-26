@@ -165,17 +165,17 @@ def test_a_word_shared_by_several_products_is_never_confident():
 
 
 def test_store_info_serves_the_free_delivery_threshold():
-    from api.catalog import MARKETS
+    from api.catalog import market_records
     from api.config import FREE_SHIPPING_MIN_CENTS
     assert TestClient(app).get("/store").json() == {
-        "free_shipping_min_cents": FREE_SHIPPING_MIN_CENTS, "markets": MARKETS}
+        "free_shipping_min_cents": FREE_SHIPPING_MIN_CENTS, "markets": market_records()}
 
 
 def test_every_seeded_product_has_a_photo_and_a_real_shop():
     # The boardwalk shops share one catalog; a product in an unknown shop, or
     # one whose photo is missing, would show broken on the page.
     import json
-    from api.catalog import MARKET_IDS
+    from scripts.seed_demo import MARKET_IDS
     from ml.constants import REPO_ROOT
     products = json.loads((REPO_ROOT / "scripts" / "seed_catalog.json").read_text("utf-8"))
     photos = REPO_ROOT / "web" / "public" / "products"
@@ -183,10 +183,9 @@ def test_every_seeded_product_has_a_photo_and_a_real_shop():
     assert {p.get("market", "grocer") for p in products} == MARKET_IDS   # every shop has stock
 
 
-def test_naming_a_shop_limits_the_search_to_it():
-    from api.catalog import merchant_scope
-    assert merchant_scope("Seaside Tech") == (True, "tech")
-    assert merchant_scope("the pet store") == (True, "pets")
-    assert merchant_scope("the grocery store") == (True, "grocer")
-    assert merchant_scope("Seaside Market") == (True, None)     # the merchant: every shop
-    assert merchant_scope("Amazon") == (False, None)
+def test_naming_a_shop_limits_the_search_to_it(monkeypatch):
+    from api import catalog
+    monkeypatch.setattr(catalog, "market_records", lambda: [{"id": "persisted-id", "name": "Actual Shop"}])
+    assert catalog.merchant_scope("Actual Shop") == (True, "persisted-id")
+    assert catalog.merchant_scope("Seaside Tech") == (False, None)
+    assert catalog.merchant_scope("Amazon") == (False, None)

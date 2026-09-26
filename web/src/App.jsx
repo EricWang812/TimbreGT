@@ -3,8 +3,8 @@ import CartDrawer from "./components/CartDrawer.jsx";
 import EnrollPage from "./issuer/EnrollPage.jsx";
 import SiteHeader from "./components/SiteHeader.jsx";
 import { AnnouncerProvider } from "./lib/announce.jsx";
-import { getCatalog } from "./lib/api.js";
-import { CartProvider } from "./lib/cart.jsx";
+import { getCartProducts, getStorefrontMarkets, getStorefrontProducts } from "./lib/api.js";
+import { CartProvider, useCart } from "./lib/cart.jsx";
 import { useRoute } from "./lib/router.js";
 import Baseline from "./pages/Baseline.jsx";
 import Checkout from "./pages/Checkout.jsx";
@@ -12,36 +12,48 @@ import Dashboard from "./pages/Dashboard.jsx";
 import Receipt from "./pages/Receipt.jsx";
 import Shop from "./pages/Shop.jsx";
 import MarketStorefront from "./pages/MarketStorefront.jsx";
+import BuyerDashboard from "./pages/BuyerDashboard.jsx";
+import { BuyerOrderDetails, BuyerOrders } from "./pages/BuyerOrders.jsx";
+import MarketDashboard from "./pages/MarketDashboard.jsx";
 
 function useCatalog() {
   const [state, setState] = useState({ status: "loading", products: [], byId: {} });
   const latest = useRef(0);  // only the newest request may update state
+  const known = useRef({});
 
-  const load = useCallback(() => {
+  const load = useCallback((marketId) => {
+    if (!marketId) return Promise.reject(new Error("A market is required to load its catalog."));
     const request = ++latest.current;
-    setState((s) => ({ ...s, status: "loading" }));
-    getCatalog().then(
-      (products) => request === latest.current && setState({
-        status: "ready",
+    setState((s) => ({ ...s, status: s.market ? "ready" : "loading", switching: true, error: null }));
+    return getStorefrontProducts(marketId).then(
+      ({ market, products }) => {
+        if (request !== latest.current) return null;
+        setState({
+        status: "ready", switching: false, error: null,
+        market,
         products,
-        byId: Object.fromEntries(products.map((p) => [p.id, p])),
-      }),
+        byId: Object.assign(known.current, Object.fromEntries(products.map((p) => [p.id, p]))),
+        });
+        return market;
+      },
       (err) => {
         console.error("catalog failed to load", err);
-        if (request === latest.current) setState((s) => ({ ...s, status: "error" }));
+        if (request === latest.current) setState((s) => ({ ...s, status: s.market ? "ready" : "error", switching: false, error: "Unable to switch markets. Please try again." }));
+        throw err;
       },
     );
   }, []);
-
-  useEffect(load, [load]);
   return { ...state, reload: load };
+}
+
+function useStorefrontMarkets() {
+  const [store, setStore] = useState({ status: "loading", markets: [] });
+  useEffect(() => { getStorefrontMarkets().then((data) => setStore({ status: "ready", markets: data.markets }), () => setStore({ status: "error", markets: [] })); }, []);
+  return store;
 }
 
 // WCAG 2.4.2: every view has its own title, announced when it changes.
 const TITLES = {
-  shop: "Seaside Market",
-  checkout: "Checkout, Seaside Market",
-  receipt: "Receipt, Seaside Market",
   baseline: "Two ways to check a voice, Timbre demo",
   dashboard: "Voice changes over time, Timbre demo",
   market: "Market storefront, Timbre",
@@ -49,11 +61,55 @@ const TITLES = {
 };
 
 function Shell() {
-  const route = useRoute();
+  const cart = useCart();
+  const [cartProducts, setCartProducts] = useState({});
+  const [cartError, setCartError] = useState(null);
+  const cartIds = cart.lines.map((line) => line.productId).sort().join(",");
   useEffect(() => {
-    document.title = TITLES[route.name] ?? TITLES.shop;
-  }, [route.name]);
+    let active = true;
+    setCartError(null);
+    if (!cartIds) return;
+    getCartProducts(cartIds.split(",")).then(({ products }) => {
+      if (active) setCartProducts(Object.fromEntries(products.map((p) => [p.id, p])));
+    }, () => { if (active) setCartError("Unable to load current cart products. Try refreshing."); });
+    return () => { active = false; };
+  }, [cartIds]);
+  const route = useRoute();
+  const store = useStorefrontMarkets();
+  const [selectedMarketId, setSelectedMarketId] = useState(() => {
+    try { return localStorage.getItem("timbre.selectedMarketId") ?? null; } catch { return null; }
+  });
   const catalog = useCatalog();
+  const selectedMarket = catalog.market ?? null;
+  const loadStarted = useRef(false);
+  useEffect(() => {
+    if (loadStarted.current || !store.markets.length) return;
+    loadStarted.current = true;
+    const initial = store.markets.some((market) => market.id === selectedMarketId)
+      ? selectedMarketId : store.markets[0].id;
+    catalog.reload(initial).then((market) => {
+      if (!market) return;
+      setSelectedMarketId(market.id);
+      try { localStorage.setItem("timbre.selectedMarketId", market.id); } catch { /* optional convenience only */ }
+    }).catch(() => { /* the catalog hook retains the valid market and exposes its error state */ });
+  }, [store.markets, selectedMarketId, catalog]);
+  async function selectMarket(id) {
+    if (!store.markets.some((market) => market.id === id)) return;
+    try {
+      const market = await catalog.reload(id);
+      if (!market) return;
+      setSelectedMarketId(market.id);
+      try { localStorage.setItem("timbre.selectedMarketId", market.id); } catch { /* optional convenience only */ }
+    } catch { /* the catalog hook retains the valid market and exposes its error state */ }
+  }
+  useEffect(() => {
+    const marketName = selectedMarket?.name ?? "Timbre";
+    const pageTitle = route.name === "shop" ? marketName
+      : route.name === "checkout" ? `Checkout, ${marketName}`
+        : route.name === "receipt" ? `Receipt, ${marketName}`
+          : TITLES[route.name] ?? marketName;
+    document.title = pageTitle;
+  }, [route.name, selectedMarket]);
   const [cartOpen, setCartOpen] = useState(false);
 
   // A plain href="#main" would be read as a route by the hash router.
@@ -75,20 +131,26 @@ function Shell() {
   return (
     <>
       <a className="skip-link" href="#main-content" onClick={skipToMain}>Skip to main content</a>
-      <SiteHeader onOpenCart={() => setCartOpen(true)} />
+      {cartError && <p className="message-error" role="alert">{cartError}</p>}
+      <SiteHeader onOpenCart={() => setCartOpen(true)} markets={store.markets} selectedMarket={selectedMarket} onSelectMarket={selectMarket} />
       {/* key: each route mounts fresh, so the .route-enter fade (styles.css) replays on navigation. */}
-      <main id="main-content" tabIndex={-1} key={`${route.name}:${route.marketId ?? ""}`} className="route-enter">
-        {route.name === "shop" && <Shop catalog={catalog} onOpenCart={() => setCartOpen(true)} />}
-        {route.name === "checkout" && <Checkout products={catalog.byId} />}
+      <main id="main-content" tabIndex={-1} key={`${route.name}:${route.marketId ?? ""}:${route.orderId ?? ""}`} className="route-enter">
+        {route.name === "shop" && <Shop key={selectedMarket?.id ?? "none"} catalog={{ ...catalog, status: store.status === "error" ? "error" : store.status === "ready" && !store.markets.length ? "ready" : catalog.status, reload: () => selectMarket(selectedMarket?.id ?? store.markets[0]?.id) }} onOpenCart={() => setCartOpen(true)} selectedMarketId={selectedMarket?.id ?? null} selectedMarket={selectedMarket} onSelectMarket={selectMarket} />}
+        {route.name === "checkout" && <Checkout products={{ ...catalog.byId, ...cartProducts }} />}
         {route.name === "baseline" && <Baseline />}
         {route.name === "dashboard" && <Dashboard />}
+        {route.name === "buyer-dashboard" && <BuyerDashboard />}
+        {route.name === "buyer-orders" && <BuyerOrders />}
+        {route.name === "buyer-order" && <BuyerOrderDetails orderId={route.orderId} />}
+        {route.name === "market-analytics" && <MarketDashboard marketId={route.marketId} page="analytics" />}
+        {route.name === "market-orders" && <MarketDashboard marketId={route.marketId} page="orders" />}
+        {route.name === "market-dashboard" && <MarketDashboard marketId={route.marketId} orderId={route.orderId} />}
         {route.name === "market" && <MarketStorefront marketId={route.marketId} />}
-        {route.name === "receipt" && <Receipt key={route.instructionId} instructionId={route.instructionId} products={catalog.byId} />}
+        {route.name === "receipt" && <Receipt key={route.instructionId} instructionId={route.instructionId} products={{ ...catalog.byId, ...cartProducts }} />}
       </main>
       <footer className="site-footer">
         <p className="note">
-          Seaside Market is a demo storefront for Timbre: four shops on one boardwalk, one cart. Prices are
-          illustrative. Product photos: contributors to{" "}
+          Timbre connects you with your selected market. Product photos: contributors to{" "}
           <a href="https://world.openfoodfacts.org" target="_blank" rel="noopener noreferrer">Open Food Facts (opens a new tab)</a>,{" "}
           <a href="https://world.openbeautyfacts.org" target="_blank" rel="noopener noreferrer">Open Beauty Facts (opens a new tab)</a>,{" "}
           <a href="https://world.openpetfoodfacts.org" target="_blank" rel="noopener noreferrer">Open Pet Food Facts (opens a new tab)</a>, and{" "}
@@ -99,7 +161,7 @@ function Shell() {
         <p className="note"><a href="#/baseline">Why transcription is the wrong test (demo comparison)</a></p>
         <p className="note"><a href="#/dashboard">Voice changes over time (adaptation demo)</a></p>
       </footer>
-      <CartDrawer open={cartOpen} onClose={() => setCartOpen(false)} products={catalog.byId} />
+      <CartDrawer open={cartOpen} onClose={() => setCartOpen(false)} products={{ ...catalog.byId, ...cartProducts }} />
     </>
   );
 }

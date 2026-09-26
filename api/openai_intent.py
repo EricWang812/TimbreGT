@@ -12,7 +12,7 @@ from typing import Literal
 import httpx
 from pydantic import BaseModel, ConfigDict, ValidationError, field_validator
 
-from api.catalog import MARKETS, list_catalog
+from api.catalog import list_catalog
 from api.config import OPENAI_API_KEY, OPENAI_INTENT_MODEL, OPENAI_TIMEOUT_S
 
 RESPONSES_URL = "https://api.openai.com/v1/responses"
@@ -160,10 +160,9 @@ def _catalog_reference() -> str:
         catalog = list_catalog()
     except sqlite3.Error as exc:
         raise IntentUnavailable("The store catalog is unavailable. Your cart was not changed.") from exc
-    shops = {m["id"]: m["name"] for m in MARKETS}
     lines = [f"- {p['id']} | {p['brand']} | {p['name']} | {p['size']} | {p['category']} | "
-             f"{shops.get(p.get('market'), p.get('market'))}" for p in catalog]
-    return ("Store catalog, every shop on the Seaside Market boardwalk, one cart "
+             f"{p.get('marketName', p.get('market', ''))}" for p in catalog]
+    return ("Selected storefront catalog, "
             "(id | brand | product | size | aisle | shop):\n" + "\n".join(lines))
 
 

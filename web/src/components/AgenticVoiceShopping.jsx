@@ -49,7 +49,7 @@ function productLabel(product) {
   return product.name.toLowerCase().includes(product.brand.toLowerCase()) ? product.name : `${product.brand} ${product.name}`;
 }
 
-export default function AgenticVoiceShopping({ onOpenCart }) {
+export default function AgenticVoiceShopping({ onOpenCart, marketId }) {
   const cart = useCart();
   const latestLines = useRef(cart.lines);
   const recording = useRef(null);
@@ -113,7 +113,7 @@ export default function AgenticVoiceShopping({ onOpenCart }) {
   async function prepare(state, skipped, signal, currentRun) {
     setPhase("shopping");
     before.current ??= latestLines.current;
-    const proposal = await prepareAgenticBasket(state, before.current, skipped, signal);
+    const proposal = await prepareAgenticBasket(state, before.current, skipped, signal, marketId);
     if (currentRun !== run.current) return;
     setResult(proposal);
     if (proposal.status === "no_matches") { setPhase("error"); setMessage(proposal.message); return; }
@@ -156,10 +156,10 @@ export default function AgenticVoiceShopping({ onOpenCart }) {
   async function interpret(text, signal, currentRun) {
     setRawTranscript(text);
     setPhase("interpreting");
-    const extracted = await extractAgenticBasket(text, signal);
+    const extracted = await extractAgenticBasket(text, signal, marketId);
     if (currentRun !== run.current) return;
     setExtraction(extracted);
-    const state = await startBasketClarifications(extracted, signal);
+    const state = await startBasketClarifications(extracted, signal, marketId);
     if (currentRun !== run.current) return;
     await continueResolution(state, signal, currentRun);
   }
@@ -237,7 +237,7 @@ export default function AgenticVoiceShopping({ onOpenCart }) {
       const state = await answerBasketClarification(
         resolution,
         { item: question.item, field: question.field, action, ...(action === "correct" ? { value } : {}) },
-        signal,
+        signal, marketId,
       );
       if (currentRun !== run.current) return;
       setCorrection("");

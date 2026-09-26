@@ -212,6 +212,16 @@ def create_market(body: CreateMarket, owner: MarketOwner) -> Market:
     return market
 
 
+@router.get("/mine", response_model=list[Market])
+def list_owned_markets(owner: MarketOwner) -> list[Market]:
+    """List only markets owned by the authenticated operator."""
+    with transaction() as conn:
+        rows = conn.execute(
+            "SELECT * FROM markets WHERE owner_account_id = ? ORDER BY created_at", (owner.id,)
+        ).fetchall()
+    return [_market(row) for row in rows]
+
+
 @router.get("/{market_id}", response_model=MarketBranding)
 def get_market(market_id: str) -> MarketBranding:
     row = fetch_one("SELECT * FROM markets WHERE id = ?", (market_id,))

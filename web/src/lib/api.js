@@ -13,6 +13,7 @@ export class ApiError extends Error {
 async function request(path, { method = "GET", body } = {}) {
   const res = await fetch(`${MERCHANT_URL}${path}`, {
     method,
+    credentials: "include",
     headers: body === undefined ? {} : { "Content-Type": "application/json" },
     body: body === undefined ? undefined : JSON.stringify(body),
   });
@@ -23,6 +24,7 @@ async function request(path, { method = "GET", body } = {}) {
       res.status,
     );
   }
+  if (res.status === 204) return null;
   return res.json();
 }
 
@@ -32,15 +34,28 @@ export const getHealth = () => request("/healthz");
 export const getCatalog = () => request("/catalog");
 export const getStoreInfo = () => request("/store");
 export const getMarketBranding = (marketId) => request(`/markets/${encodeURIComponent(marketId)}`);
+export const getStorefrontMarkets = () => request("/storefront/markets");
+export const getStorefrontProducts = (marketId) => request(`/storefront/markets/${encodeURIComponent(marketId)}/products`);
 export const quoteCart = (lines) => request("/cart/quote", { method: "POST", body: { items: toItems(lines) } });
 export const confirmCheckout = (lines) => request("/checkout/confirm", { method: "POST", body: { items: toItems(lines) } });
 // Returns exactly {verified, transaction_id}: all the merchant ever learns (§2.5).
 export const completeCheckout = (instructionId) =>
   request("/checkout/complete", { method: "POST", body: { instruction_id: instructionId } });
 export const getOrder = (instructionId) => request(`/orders/${instructionId}`);
+export const getBuyerAccount = () => request("/buyer-auth/me");
+export const getBuyerSession = () => request("/buyer-auth/session");
+export const getBuyerOrders = () => request("/buyer/markets/orders");
+export const getBuyerOrder = (orderId) => request(`/buyer/markets/orders/${encodeURIComponent(orderId)}`);
+export const buyAgain = (orderId) => request(`/buyer/markets/orders/${encodeURIComponent(orderId)}/buy-again`, { method: "POST" });
+export const getMarketOwnerAccount = () => request("/market-auth/me");
+export const getOwnedMarkets = () => request("/markets/mine");
+export const getMarketOrders = (marketId) => request(`/markets/${encodeURIComponent(marketId)}/orders`);
+export const getMarketOwnerSession = () => request("/market-auth/session");
+export const logoutBuyer = () => request("/buyer-auth/logout", { method: "POST" });
+export const logoutMarketOwner = () => request("/market-auth/logout", { method: "POST" });
 
-async function shoppingRequest(path, body, signal, json = false) {
-  const res = await fetch(`${MERCHANT_URL}${path}`, {
+async function shoppingRequest(path, body, signal, json = false, marketId) {
+  const res = await fetch(`${MERCHANT_URL}${path}${marketId ? `?marketId=${encodeURIComponent(marketId)}` : ""}`, {
     method: "POST", signal, body: json ? JSON.stringify(body) : body,
     headers: json ? { "Content-Type": "application/json" } : {},
   });
@@ -50,11 +65,11 @@ async function shoppingRequest(path, body, signal, json = false) {
   }
   return res.json();
 }
-export const shoppingText = (text, signal) => shoppingRequest("/shopping/text", { text }, signal, true);
-export const shoppingVoice = (wav, signal) => {
+export const shoppingText = (text, signal, marketId) => shoppingRequest("/shopping/text", { text }, signal, true, marketId);
+export const shoppingVoice = (wav, signal, marketId) => {
   const body = new FormData();
   body.append("audio", wav, "shopping.wav");
-  return shoppingRequest("/shopping/voice", body, signal);
+  return shoppingRequest("/shopping/voice", body, signal, false, marketId);
 };
 
 export const transcribeAgenticShopping = (wav, signal) => {
@@ -84,16 +99,24 @@ export const prepareAgenticCart = (finalizedRequest, lines, signal) =>
 // A whole basket: several named items and meals (api/basket.py). `prepare`
 // returns a server-priced proposal; the caller applies `items` to the
 // CartProvider only when the shopper has seen it (or it needs no review).
-export const extractAgenticBasket = (transcript, signal) =>
-  shoppingRequest("/agentic-shopping/basket/intent", { transcript }, signal, true);
-export const startBasketClarifications = (extraction, signal) =>
-  shoppingRequest("/agentic-shopping/basket/clarifications", extraction, signal, true);
-export const answerBasketClarification = (state, answer, signal) =>
-  shoppingRequest("/agentic-shopping/basket/clarifications/answer", { state, answer }, signal, true);
-export const prepareAgenticBasket = (state, lines, skip, signal) =>
+export const extractAgenticBasket = (transcript, signal, marketId) =>
+  shoppingRequest("/agentic-shopping/basket/intent", { transcript }, signal, true, marketId);
+export const startBasketClarifications = (extraction, signal, marketId) =>
+  shoppingRequest("/agentic-shopping/basket/clarifications", extraction, signal, true, marketId);
+export const answerBasketClarification = (state, answer, signal, marketId) =>
+  shoppingRequest("/agentic-shopping/basket/clarifications/answer", { state, answer }, signal, true, marketId);
+export const prepareAgenticBasket = (state, lines, skip, signal, marketId) =>
   shoppingRequest(
     "/agentic-shopping/basket/prepare",
     { state, existingItems: toItems(lines), skip },
     signal,
-    true,
+    true, marketId,
   );
+
+export const getCartProducts = (productIds) => request("/storefront/cart-products", { method: "POST", body: { productIds } });
+
+export const updateMarketOrderStatus = (marketId, orderId, status) => request(`/markets/${encodeURIComponent(marketId)}/orders/${encodeURIComponent(orderId)}/status`, { method: "PATCH", body: { status } });
+
+export const getMarketAnalytics = (marketId, period) => request(`/markets/${encodeURIComponent(marketId)}/analytics?period=${encodeURIComponent(period)}`);
+
+export const getMarketOperations = (marketId) => request(`/markets/${encodeURIComponent(marketId)}/operations`);

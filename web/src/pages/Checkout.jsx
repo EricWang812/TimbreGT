@@ -10,7 +10,6 @@ import { useAnnounce } from "../lib/announce.jsx";
 import { useCart } from "../lib/cart.jsx";
 import { formatCents } from "../lib/money.js";
 import { navigate } from "../lib/router.js";
-import { shopNameFor, shopOf, useStoreInfo } from "../lib/shops.js";
 
 const WIDE_QUERY = "(min-width: 900px)";
 
@@ -33,7 +32,6 @@ function useWide() {
 // Rows come from the server quote once it is ready (the prices that will be
 // charged); until then, from the cart itself, without prices.
 function ItemList({ quote, lines, products }) {
-  const { markets } = useStoreInfo();
   const rows = quote.status === "ready"
     ? quote.lines.map((l) => ({
       id: l.product_id, name: l.name, quantity: l.quantity, unit: l.unit_cents, total: l.line_cents,
@@ -43,14 +41,14 @@ function ItemList({ quote, lines, products }) {
     <ul className="checkout-lines">
       {rows.map((row) => {
         const p = products[row.id];
-        const shop = shopNameFor(p, markets);
+        const shop = p?.marketName ?? null;
         return (
           <li key={row.id} className="checkout-line">
             {p
               ? <img className="checkout-thumb" src={p.image_url} alt="" width="64" height="64" />
               : <span className="checkout-thumb" aria-hidden="true" />}
             <div className="checkout-line-info">
-              {shop && <p className="line-shop" data-market={shopOf(p)}>{shop}</p>}
+              {shop && <p className="line-shop">{shop}</p>}
               {p && <p className="checkout-line-brand">{p.brand}</p>}
               <p className="checkout-line-name">{row.name ?? "Loading item…"}</p>
               <p className="checkout-line-unit">

@@ -19,7 +19,7 @@ function loadReadAloud() {
   }
 }
 
-export default function VoiceShopping({ products }) {
+export default function VoiceShopping({ products, marketId }) {
   const cart = useCart();
   const [readAloud, setReadAloud] = useState(loadReadAloud);
   const [phase, setPhase] = useState("idle");
@@ -52,7 +52,7 @@ export default function VoiceShopping({ products }) {
     busy.current = true;
     stopSpeaking();
     setMessage("Agentic shopping is unavailable. Using standard voice shopping…");
-    interpret((signal) => shoppingVoice(event.detail.wav, signal), true);
+    interpret((signal) => shoppingVoice(event.detail.wav, signal, marketId), true);
   };
   useEffect(() => {
     const handleFallback = (event) => fallbackRequest.current?.(event);
@@ -98,7 +98,7 @@ export default function VoiceShopping({ products }) {
     try {
       const { wav } = await take.stop();
       if (current !== generation.current) return;
-      await interpret((signal) => shoppingVoice(wav, signal), true);
+      await interpret((signal) => shoppingVoice(wav, signal, marketId), true);
     } catch (err) {
       if (current === generation.current) { setMessage(err.message); setPhase("idle"); busy.current = false; }
     }
@@ -134,7 +134,7 @@ export default function VoiceShopping({ products }) {
     event.preventDefault();
     if (busy.current || !text.trim()) return;
     busy.current = true; setMessage("");
-    interpret((signal) => shoppingText(text.trim(), signal));
+    interpret((signal) => shoppingText(text.trim(), signal, marketId));
   }
 
   function add() {

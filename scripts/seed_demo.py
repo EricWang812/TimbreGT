@@ -17,10 +17,12 @@ from a card number (non-negotiable §2.2).
 """
 import dataclasses
 import json
+import uuid
 from datetime import datetime, timezone
 
 from api import db as merchant_db
-from api.catalog import MARKET_IDS
+MARKET_IDS = {"grocer", "tech", "sun", "pets"}  # seed input validation only
+from api.market_auth import _hash_password
 from issuer import db as issuer_db
 from issuer.config import CYBERSOURCE_CUSTOMER_TOKENS
 from issuer.payments import active_provider_name, get_provider, token_is_current
@@ -37,6 +39,28 @@ IMAGE_CREDITS = {
     "products": "Photo: Open Products Facts contributors, CC BY-SA 3.0",
 }
 DEFAULT_MARKET = "grocer"   # a product without a "market" key is sold by Seaside Grocer
+SEASIDE_OWNER_ID = "00000000-0000-4000-8000-000000000001"
+SEASIDE_MARKET_ID = "00000000-0000-4000-8000-000000000002"
+SEASIDE_PRODUCTS = [
+    ("Wild Planet", "Albacore Tuna", 449, 5, "oz", "seafood", "wild-planet-albacore"),
+    ("Kirkland Signature", "Wild Argentine Red Shrimp", 2199, 2, "lb", "seafood", "kirkland-red-shrimp"),
+    ("Dole", "Organic Bananas", 299, 3, "lb", "produce", None),
+    ("Dave's Killer Bread", "21 Whole Grains and Seeds Bread", 699, 27, "oz", "bakery", "daves-21-grains"),
+    ("Chobani", "Greek Yogurt, Nonfat Plain", 649, 32, "oz", "dairy", None),
+    ("Cabot Creamery", "Seriously Sharp Cheddar", 429, 8, "oz", "dairy", "cabot-seriously-sharp"),
+    ("Fage", "Total 0% Greek Yogurt", 749, 32, "oz", "dairy", "fage-total-0"),
+    ("Tajín", "Clásico Seasoning, Reduced Sodium", 349, 5, "oz", "pantry", "tajin-reduced-sodium"),
+    ("Jif", "Creamy Peanut Butter", 349, 16, "oz", "pantry", "jif-creamy"),
+    ("Terra Delyssa", "Extra Virgin Olive Oil", 1199, 750, "mL", "pantry", None),
+    ("Quaker", "Old Fashioned Oats", 649, 42, "oz", "pantry", "quaker-old-fashioned"),
+    ("Huy Fong Foods", "Sriracha Hot Chili Sauce", 499, 17, "oz", "pantry", "huy-fong-sriracha"),
+    ("Pirate's Booty", "Aged White Cheddar Puffs", 399, 4, "oz", "snacks", "pirates-booty"),
+    ("Simple Mills", "Almond Flour Crackers, Farmhouse Cheddar", 499, 4.25, "oz", "snacks", "simple-mills-cheddar"),
+    ("GoGo SqueeZ", "AppleApple Fruit Pouch", 149, 3.2, "oz", "snacks", None),
+    ("Café Bustelo", "Espresso Ground Coffee", 599, 10, "oz", "drinks", None),
+    ("Simply Orange", "Pulp Free Orange Juice", 549, 52, "fl oz", "drinks", "simply-orange"),
+    ("S.Pellegrino", "Sparkling Natural Mineral Water", 249, 750, "mL", "drinks", None),
+]
 
 # "test_token" is a Stripe named test PaymentMethod (also understood by the
 # fake provider). With PAYMENT_PROVIDER=visa the card is instead the
@@ -87,6 +111,23 @@ def seed_catalog() -> int:
     return len(products)
 
 
+def seed_seaside_marketplace() -> int:
+    """Seed the original storefront as an ordinary persisted owner market."""
+    with merchant_db.transaction() as conn:
+        conn.execute("INSERT OR IGNORE INTO accounts (id, email, password_hash, role, created_at) VALUES (?, ?, ?, 'MARKET_OWNER', ?)",
+                     (SEASIDE_OWNER_ID, "seaside-system@timbre.local", _hash_password("seaside-system-owner"), _now()))
+        conn.execute("INSERT OR IGNORE INTO markets (id, name, owner_account_id, primary_color, description, created_at) VALUES (?, 'Seaside Grocer', ?, '#126B5B', 'Fresh from the coast, and the pantry behind it.', ?)",
+                     (SEASIDE_MARKET_ID, SEASIDE_OWNER_ID, _now()))
+        for brand, name, cents, quantity, unit, category, legacy_id in SEASIDE_PRODUCTS:
+            photo = None
+            if legacy_id:
+                legacy = conn.execute("SELECT image_url FROM products WHERE id = ?", (legacy_id,)).fetchone()
+                photo = legacy["image_url"] if legacy else None
+            conn.execute("INSERT OR REPLACE INTO market_products (id, market_id, name, brand, category, price_cents, photo_url, quantity_value, quantity_unit, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+                         (str(uuid.uuid5(uuid.NAMESPACE_URL, f"timbre:seaside:{name}")), SEASIDE_MARKET_ID, name, brand, category, cents, photo, quantity, unit, _now()))
+    return len(SEASIDE_PRODUCTS)
+
+
 def seed_cardholders() -> list[str]:
     provider = get_provider()
     created = []
@@ -124,6 +165,7 @@ def main() -> None:
     merchant_db.init_db()
     issuer_db.init_db()
     print(f"catalog: {seed_catalog()} products")
+    print(f"marketplace Seaside Grocer: {seed_seaside_marketplace()} products")
     created = seed_cardholders()
     print("cardholders: " + (", ".join(created) if created else "already seeded"))
 

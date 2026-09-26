@@ -17,3 +17,12 @@ os.environ["STRIPE_SECRET_KEY"] = ""
 
 def pytest_sessionfinish(session, exitstatus):
     shutil.rmtree(_TMP_DIR)
+
+
+import pytest
+
+@pytest.fixture(scope="session", autouse=True)
+def merchant_schema():
+    # Pure shopping services now read persisted market metadata too.
+    from api.db import init_db
+    init_db()

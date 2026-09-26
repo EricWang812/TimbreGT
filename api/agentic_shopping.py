@@ -11,7 +11,7 @@ import sqlite3
 
 import numpy as np
 import soundfile as sf
-from fastapi import APIRouter, File, HTTPException, UploadFile
+from fastapi import Depends, APIRouter, File, HTTPException, UploadFile
 from pydantic import BaseModel, ConfigDict, Field, ValidationError, field_validator
 
 from api.ambiguity_resolution import (
@@ -30,6 +30,7 @@ from api.basket import (
     build_basket_state,
     prepare_basket,
 )
+from api.catalog import shopping_market
 from api.config import (
     AGENTIC_AUDIO_MAX_BYTES,
     AGENTIC_AUDIO_MAX_SECONDS,
@@ -48,7 +49,7 @@ from api.openai_intent import (
 )
 from api.openai_transcription import TranscriptionUnavailable, transcribe_audio
 
-router = APIRouter(prefix="/agentic-shopping", tags=["agentic shopping"])
+router = APIRouter(prefix="/agentic-shopping", tags=["agentic shopping"], dependencies=[Depends(shopping_market)])
 
 
 class TranscriptionResponse(BaseModel):

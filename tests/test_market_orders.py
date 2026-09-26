@@ -180,3 +180,31 @@ def test_multi_market_checkout_creates_one_private_order_per_market(monkeypatch)
     assert [(row["market_id"], row["subtotal_cents"], row["transaction_id"]) for row in rows] == sorted([
         (first_market["id"], 399, "txn-split"), (second_market["id"], 500, "txn-split"),
     ])
+
+
+def test_buy_again_uses_current_products_and_never_creates_checkout(monkeypatch):
+    from api.db import transaction
+    monkeypatch.setattr(issuer_client, "create_session", lambda *args: "issuer-session")
+    monkeypatch.setattr(issuer_client, "approve", lambda _: {"verified": True, "transaction_id": "reorder-test"})
+    with TestClient(app) as client:
+        market, product = _market_product(client)
+        _shipping_selection(client, market["id"])
+        result = client.post(f"/buyer/markets/{market['id']}/checkout/confirm", json={"items": [{"productId": product["id"], "quantity": 2}]}).json()
+        client.post("/checkout/complete", json={"instruction_id": result["instructionId"]})
+        order = client.get("/buyer/markets/orders").json()["orders"][0]
+        with transaction() as conn:
+            conn.execute("UPDATE market_products SET price_cents = 599 WHERE id = ?", (product["id"],))
+        before = len(fetch_all("SELECT * FROM market_checkout_sessions"))
+        again = client.post(f"/buyer/markets/orders/{order['id']}/buy-again").json()
+        assert again["items"] == [{"productId": product["id"], "quantity": 2}]
+        assert again["priceChanged"] == [product["id"]]
+        metadata = client.post("/storefront/cart-products", json={"productIds": [product["id"]]}).json()["products"]
+        assert metadata[0]["price_cents"] == 599 and metadata[0]["market"] == market["id"]
+        assert len(fetch_all("SELECT * FROM market_checkout_sessions")) == before
+        with transaction() as conn:
+            conn.execute("DELETE FROM market_products WHERE id = ?", (product["id"],))
+        again = client.post(f"/buyer/markets/orders/{order['id']}/buy-again").json()
+        assert not again["items"] and again["unavailable"] == [product["id"]]
+        client.cookies.clear()
+        _buyer(client)
+        assert client.post(f"/buyer/markets/orders/{order['id']}/buy-again").status_code == 404

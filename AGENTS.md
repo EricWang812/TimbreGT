@@ -922,3 +922,336 @@ Minimal but non-optional. `make test` runs:
 
 Section numbers are preserved from the original single-file version, so a
 reference like "non-negotiable §2.5" always means the same thing across files.
+
+## Marketplace Frontend Implementation Progress
+
+### Frontend Feature 1: User Icon and Account Menu
+
+**Status:** Implemented on 2026-09-26.
+
+**Changes:** Added an accessible profile icon and account menu to the existing storefront header. It retains the existing storefront, voice-shopping launcher, and cart controls. The menu shows buyer links when a buyer session exists and shows Market Dashboard only when a separate market-owner session exists. Logout clears either active server-side session and leaves the cart intact.
+
+**Files modified:** `web/src/components/SiteHeader.jsx`, `web/src/components/Icons.jsx`, `web/src/lib/api.js`, `web/src/styles.css`, `AGENTS.md`, `docs/CHANGELOG.md`.
+
+**APIs used:** `GET /buyer-auth/me`, `GET /market-auth/me`, `POST /buyer-auth/logout`, and `POST /market-auth/logout`. The shared frontend request helper now includes credentials, which is required for the existing HttpOnly session cookies; it handles the logout endpoints' 204 responses.
+
+**Verification:** `npm --prefix web run build` passes with 68 modules. `git diff --check` passes.
+
+**Known limitations:** Buyer Dashboard, Orders, Addresses, Account Settings, and Market Dashboard destinations are menu links only until their respective frontend features are implemented. There is no login UI yet, so session creation remains through the existing account APIs.
+
+**Next frontend feature:** Feature 2, fast market switcher. Do not begin it until explicitly continuing the required feature cycle.
+
+### Frontend Feature 2: Fast Market Switcher
+
+**Status:** Implemented on 2026-09-26.
+
+**Changes:** Made the current market name in the storefront header a searchable modal switcher. `App` owns `selectedMarketId`, persists it for the viewer, and passes it to both the header and Shop page. Selecting a market updates the header and the displayed market sections without a page reload. The existing shared cart remains untouched.
+
+**Files modified:** `web/src/App.jsx`, `web/src/components/SiteHeader.jsx`, `web/src/pages/Shop.jsx`, `web/src/styles.css`, `AGENTS.md`, `docs/CHANGELOG.md`.
+
+**APIs used:** Existing `GET /store` market metadata and existing `GET /catalog` boardwalk catalog through the shared store-information and catalog hooks.
+
+**Verification:** `npm --prefix web run build` passes with 68 modules. `git diff --check` passes.
+
+**Known limitations:** The legacy boardwalk backend serves the catalog as one read-only payload and its existing product records use a `market` label, so switching filters the already loaded catalog instead of requesting a per-market catalog. This preserves the current cart and checkout behavior. A future backend adapter should provide a market-scoped catalog endpoint before the client changes to per-market fetches; no destructive catalog or cart rewrite was made.
+
+**Next frontend feature:** Feature 3, buyer dashboard. Do not begin it until explicitly continuing the required feature cycle.
+
+## Database-Backed Storefront Migration
+
+### Feature 1: Seed Seaside Grocer as a Persisted Marketplace
+
+**Status:** Backend foundation implemented on 2026-09-26. Frontend migration remains incomplete.
+
+**Changes:** Added database-backed `description` to markets and `brand` plus `category` to market products. Added public storefront reads at `GET /storefront/markets` and `GET /storefront/markets/{market_id}/products`, which return persisted branding, market description, product records, category values, photos, measurements, and normalized quantity data. `scripts/seed_demo.py` now creates a system-owned Seaside Grocer record and exactly 18 requested product records with persisted category, price, quantity, unit, and existing legacy image references when available.
+
+**Files added:** `api/storefront.py`.
+
+**Files modified:** `api/db.py`, `api/main.py`, `scripts/seed_demo.py`, `AGENTS.md`, `docs/CHANGELOG.md`.
+
+**Verification:** `.venv/bin/python -m scripts.seed_demo` seeds 88 legacy catalog rows and 18 persisted Seaside Grocer marketplace products. Direct TestClient checks return Seaside Grocer, its persisted description, 18 products, and seven categories through the public storefront API. Python compilation, `npm --prefix web run build` (68 modules), and `git diff --check` pass.
+
+**Known limitation and required next work:** The browser storefront still reads the legacy `products` catalog because its shared cart and checkout price legacy product IDs. Redirecting it to the new marketplace records without an additive product-ID/cart adapter would break checkout. No destructive replacement was made. The next task must add that adapter and switch the frontend atomically to the new storefront endpoints, including data-driven category rendering and market search, before any buyer-dashboard work.
+
+### Feature 1 Repair: Database-Backed Browser Storefront
+
+**Status:** Implemented on 2026-09-26.
+
+**Changes:** Replaced the browser storefront's `GET /catalog` dependency with `GET /storefront/markets` and `GET /storefront/markets/{market_id}/products`. The selected-market request returns the persisted market and its products only. The application retains previously fetched product records only as a cart display cache, so switching markets does not clear existing cart lines. Storefront category groups now derive directly from product category values rather than the old shop-category mapping.
+
+**Files modified:** `api/cart.py`, `web/src/App.jsx`, `web/src/pages/Shop.jsx`, `web/src/lib/api.js`, `AGENTS.md`, `docs/CHANGELOG.md`.
+
+**Cart and checkout compatibility:** Server cart pricing now resolves an unknown legacy catalog ID against `market_products`, so the existing cart, quote, checkout, and issuer authorization path can price database-backed storefront products. Legacy catalog data remains available for historical flows while it is retired incrementally.
+
+**Verification:** `.venv/bin/python -m scripts.seed_demo` creates Seaside Grocer and 18 products. Public storefront endpoints return only persisted market/product records. `.venv/bin/python -m pytest tests/test_boundary.py tests/test_market_products.py -q` passes 93 tests. `npm --prefix web run build` passes with 68 modules. `git diff --check` passes.
+
+**Known limitations:** The header market switcher now uses real persisted markets, but visual market-specific logos/themes and the cart's legacy shop-name labels still need their own data-driven adapter. The footer copy still describes the former boardwalk demo. No fallback catalog is used on a storefront API error.
+
+**Next required repair:** Make market branding and the header switcher commit atomically from one persisted selected-market response, then continue frontend features.
+
+### Feature 2 Repair: Atomic Persisted Market Switching
+
+**Status:** Implemented on 2026-09-26.
+
+**Changes:** The visible selected market now remains unchanged until `GET /storefront/markets/{market_id}/products` returns the requested persisted market and its catalog. The completed response updates the header identity and Shop inventory together. The header uses the persisted market name, optional logo, description, and primary-color value. Storefront product records now include their persisted market name, allowing the existing cart drawer and checkout to label marketplace cart lines without reading the retired boardwalk market metadata endpoint.
+
+**Files modified:** `api/storefront.py`, `web/src/App.jsx`, `web/src/components/SiteHeader.jsx`, `web/src/components/CartDrawer.jsx`, `web/src/pages/Checkout.jsx`, `web/src/pages/Shop.jsx`, `web/src/styles.css`, `AGENTS.md`, `docs/CHANGELOG.md`.
+
+**Verification:** `.venv/bin/python -m pytest tests/test_boundary.py tests/test_market_products.py -q` passes 93 tests. `npm --prefix web run build` passes with 67 modules. `git diff --check` passes.
+
+**Known limitations:** The legacy boardwalk catalog remains server-side for the preserved legacy voice-shopping path and existing historical flows. It is not a browser storefront fallback. The global footer still has old boardwalk demo copy and should be made neutral in a later copy-only repair.
+
+**Next required repair:** Replace remaining legacy runtime market metadata used by server-side shopping intent with database-backed market discovery, preserving the Whisper path and existing shopping behavior.
+
+### Frontend Feature 3: Buyer Dashboard
+
+**Status:** Implemented on 2026-09-26.
+
+**Changes:** Added the Buyer Dashboard at `#/buyer-dashboard`, linked from the existing authenticated buyer menu. It reads only `GET /buyer/markets/orders` and deterministically calculates 30-day spending, orders this month, active fulfillment count, and the most visited market from the authenticated buyer’s persisted orders. It also shows up to five recent orders and accurate loading, error, and no-history states.
+
+**Files added:** `web/src/pages/BuyerDashboard.jsx`.
+
+**Files modified:** `web/src/App.jsx`, `web/src/lib/api.js`, `web/src/lib/router.js`, `AGENTS.md`, `docs/CHANGELOG.md`.
+
+**Verification:** `npm --prefix web run build` passes with 68 modules. `git diff --check` passes.
+
+**Known limitations:** The dashboard intentionally has no fabricated insight or chart data. The detailed Orders page, Buy Again, and buyer AI insights remain later frontend features.
+
+**Next frontend feature:** Feature 4, Buyer Orders and Order Details.
+
+### Frontend Feature 4: Buyer Orders and Details
+
+**Status:** Implemented on 2026-09-26.
+
+**Changes:** Added `#/buyer-orders` with All, Active, Shipping, and Pickup filters, plus authenticated detail routes at `#/buyer-orders/{orderId}`. The UI uses existing persisted buyer-order records for purchased items, prices, totals, status, fulfillment type, shipping or pickup location, carrier tracking, and local-driver delivery. Progress labels reflect the backend status, and no order state is mutated by the buyer UI.
+
+**Files added:** `web/src/pages/BuyerOrders.jsx`.
+
+**Files modified:** `web/src/App.jsx`, `web/src/lib/api.js`, `web/src/lib/router.js`, `AGENTS.md`, `docs/CHANGELOG.md`.
+
+**Verification:** `npm --prefix web run build` passes with 69 modules. `git diff --check` passes.
+
+**Known limitations:** There is no Buy Again action yet. Filtered orders are loaded from the existing history endpoint and current backend statuses do not include a separate completed terminal state.
+
+**Next frontend feature:** Feature 5, Buy Again.
+
+### Frontend Feature 5: Buy Again
+
+**Status:** Implemented on 2026-09-26.
+
+**Changes:** Added an authenticated `POST /buyer/markets/orders/{orderId}/buy-again` resolver. It verifies the order belongs to the active buyer, resolves its item snapshots against current products in the original market, returns only available lines with current-price changes, and never writes cart, checkout, payment, or order state. The order-detail Buy Again control applies available quantities to the existing browser cart and reports unavailable and price-changed items.
+
+**Files modified:** `api/market_orders.py`, `web/src/lib/api.js`, `web/src/pages/BuyerOrders.jsx`, `AGENTS.md`, `docs/CHANGELOG.md`.
+
+**Verification:** `.venv/bin/python -m pytest tests/test_market_orders.py -q` passes 4 tests. The frontend build remains pending because Vite needs permission to write its temporary config file in `web/node_modules/.vite-temp`.
+
+**Known limitations:** Product availability is represented by the product’s continued presence in the market catalog. There is no inventory-count model yet.
+
+**Next frontend feature:** Feature 6, Buyer AI Insights.
+
+### Frontend Feature 6: Buyer Insights
+
+**Status:** Implemented on 2026-09-26.
+
+**Changes:** Added buyer-authorized shopping insights to the existing dashboard. The client deterministically derives the most visited market, most purchased item, and most common fulfillment method from the authenticated buyer’s order history. It shows no insight section until there is enough real history.
+
+**Files modified:** `web/src/pages/BuyerDashboard.jsx`, `AGENTS.md`, `docs/CHANGELOG.md`.
+
+**Verification:** Source review confirms calculations operate only on `GET /buyer/markets/orders` results. A frontend build remains pending temporary-directory write permission.
+
+**Known limitations:** These are deterministic explanations, not an OpenAI summary, so they do not add an API-key or data-sharing path.
+
+**Next frontend feature:** Feature 7, Market Owner Shell.
+
+### Frontend Feature 7: Market Owner Shell
+
+**Status:** Implemented on 2026-09-26.
+
+**Changes:** Added the protected `#/market-dashboard` operator shell. It verifies the existing market-owner session before showing a distinct market-management navigation for Overview, Orders, Products, Analytics, Storefront, Fulfillment, and Account. Anonymous visitors receive an access message and no market data.
+
+**Files added:** `web/src/pages/MarketDashboard.jsx`.
+
+**Files modified:** `web/src/App.jsx`, `web/src/lib/router.js`, `AGENTS.md`, `docs/CHANGELOG.md`.
+
+**Known limitations:** This is navigation only. Individual market operator pages are later features and are not represented with sample data.
+
+**Next frontend feature:** Feature 8, Market Overview and Kanban.
+
+### Market Owner Discovery Adapter
+
+**Status:** Implemented on 2026-09-26.
+
+**Changes:** Added authenticated `GET /markets/mine`, returning only database market records whose `owner_account_id` matches the active market-owner session. This provides the market selector data required for the real order board without hardcoded market IDs.
+
+**Files modified:** `api/markets.py`, `AGENTS.md`, `docs/CHANGELOG.md`.
+
+**Security:** Ownership is enforced in the query. Anonymous requests and buyers remain rejected through the existing `MarketOwner` dependency.
+
+### Frontend Feature 8: Market Overview Kanban
+
+**Status:** Implemented on 2026-09-26.
+
+**Changes:** The protected market dashboard now discovers the owner’s persisted markets and loads orders only for the first owned market through the existing owner-scoped order API. It renders real order cards in Not Started, Fulfilling, Order Complete, Shipping, and Ready for Pickup columns, with accurate empty, loading, and error states.
+
+**Files modified:** `web/src/lib/api.js`, `web/src/pages/MarketDashboard.jsx`, `AGENTS.md`, `docs/CHANGELOG.md`.
+
+**Known limitations:** Market selection and order-status controls are later features. No fake orders are displayed.
+
+**Next frontend feature:** Feature 9, Market Orders.
+
+### Storefront Authentication Repair
+
+**Status:** Implemented on 2026-09-26.
+
+**Changes:** Added public `GET /buyer-auth/session` and `GET /market-auth/session` probes that return `{account: null}` for anonymous visitors. The storefront header now uses these probes instead of protected `/me` endpoints, so anonymous shopping no longer produces 401 responses. Protected dashboards and existing `/me` routes still require their respective authenticated sessions. Checkout was not changed and remains available without a buyer or market login.
+
+**Files modified:** `api/buyer_auth.py`, `api/market_auth.py`, `web/src/components/SiteHeader.jsx`, `web/src/lib/api.js`, `AGENTS.md`, `docs/CHANGELOG.md`.
+
+**Verification:** `git diff --check` passes. Python bytecode compilation could not write its cache file under the restricted environment; no application code error was reported.
+
+### Storefront Catalog Reload Repair
+
+**Status:** Implemented on 2026-09-26.
+
+**Changes:** Restored `catalog.reload(marketId)` as a promise-returning asynchronous operation. It now resolves after the requested persisted market catalog is committed to state and rejects after recording an error. Initial loading and market switching handle failures without committing the requested market ID, so the previously valid market identity and data remain together.
+
+**Files modified:** `web/src/App.jsx`, `AGENTS.md`, `docs/CHANGELOG.md`.
+
+**Verification:** `npm --prefix web run build` passes with 69 modules. `git diff --check` passes.
+
+### Storefront Product-Market Relationship Repair
+
+**Status:** Implemented on 2026-09-26.
+
+**Changes:** Replaced the stale `shopOf` reference in `Shop.jsx` with the persisted `product.market` relationship returned by the database storefront endpoint. Category groups and counts continue to derive from the selected market’s fetched products only.
+
+**Files modified:** `web/src/pages/Shop.jsx`, `AGENTS.md`, `docs/CHANGELOG.md`.
+
+**Verification:** `npm --prefix web run build` passes with 69 modules. `git diff --check` passes. A source search confirms no `shopOf` reference remains in `Shop.jsx`.
+
+### Shop Banner Contrast Repair
+
+**Status:** Implemented on 2026-09-26.
+
+**Changes:** Applied the existing dark green `--band` color directly to `.shop-banner-body` with white text, ensuring a reliable high-contrast banner even when a database market ID has no legacy CSS shop-color mapping.
+
+**Files modified:** `web/src/styles.css`, `AGENTS.md`, `docs/CHANGELOG.md`.
+
+**Follow-up:** Applied the same dark green backdrop to the banner awning, replacing its legacy shop-color stripe dependency.
+
+### Copy Repair: Remove Stale Boardwalk Branding
+
+**Status:** Implemented on 2026-09-26.
+
+**Changes:** Browser document titles now derive from the database-selected market on storefront, checkout, and receipt routes. Replaced the old footer sentence that named Seaside Market and four boardwalk shops with neutral application copy.
+
+**Files modified:** `web/src/App.jsx`, `AGENTS.md`, `docs/CHANGELOG.md`.
+
+**Verification:** `npm --prefix web run build` passes with 67 modules. `git diff --check` passes.
+
+**Known limitations:** This is presentation-only. Legacy server-side catalog metadata still needs a database-backed adapter for the preserved legacy shopping paths.
+
+**Next required repair:** Replace remaining legacy runtime market metadata used by server-side shopping intent with database-backed market discovery, preserving the Whisper path and existing shopping behavior.
+
+
+### Continuation checkpoint: Repair authoritative storefront shopping context
+
+**Status:** Implemented and verified on 2026-09-26. This entry supersedes conflicting historical limitations above.
+
+Files: api/catalog.py, api/shopping.py, api/agentic_shopping.py, api/openai_intent.py, api/commerce_agent.py, api/storefront.py, scripts/seed_demo.py, web/src/App.jsx, web/src/lib/api.js, web/src/pages/Shop.jsx, web/src/components/VoiceShopping.jsx, web/src/components/AgenticVoiceShopping.jsx, tests/conftest.py, tests/test_shopping.py, tests/test_storefront_scope.py. Runtime market metadata and shopping catalog now come from persisted markets and products. Every active browser shopping stage carries its selected market; switching cancels old sessions. Failed switches retain the valid storefront, empty markets remain selectable, and retry supplies a real market ID. Legacy stored cart product IDs remain priceable for compatibility; no runtime demo market array remains. Initial checkpoint build and 24 order/auth tests passed. Feature 8 still needs its error-path repair before forward progress.
+
+**Verification:** 53 selected-market, Whisper, agentic intent, basket and commerce tests pass; frontend production build passes.
+
+
+### Continuation checkpoint: Repair Buy Again and restored cart metadata
+
+**Status:** Implemented and verified on 2026-09-26. This entry supersedes conflicting historical limitations above.
+
+Files: api/storefront.py, web/src/lib/api.js, web/src/App.jsx, web/src/pages/BuyerDashboard.jsx, tests/test_market_orders.py. The existing cart now resolves current backend product metadata across markets after restoration or Buy Again. Reordering remains additive and never creates checkout or payment. Deleted products are skipped and price changes reported. Corrected the buyer rolling-period label. Also normalized shopping import placement found in review.
+
+**Verification:** 5 market-order tests including reorder price/deletion/isolation coverage pass; 32 boundary/storefront/order tests pass; production build passes.
+
+
+### Continuation checkpoint: Repair Feature 8 Kanban load failures
+
+**Status:** Implemented and verified on 2026-09-26. This entry supersedes conflicting historical limitations above.
+
+Files: web/src/pages/MarketDashboard.jsx. Both market discovery and order-fetch failures now enter an error state, and unmounted requests cannot overwrite the board. The prior promise rejection handler did not catch failures inside its async success callback. This completes the earlier basic read-only board checkpoint; Feature 9 details and transitions are next.
+
+**Verification:** Production build passes; owner order API and authentication were verified by the 24-test checkpoint run; reviewed asynchronous rejection and cancellation paths.
+
+
+### Continuation checkpoint: Feature 9 Market Order Board
+
+**Status:** Implemented and verified on 2026-09-26. This entry supersedes conflicting historical limitations above.
+
+Files: api/market_orders.py, web/src/pages/MarketDashboard.jsx, web/src/pages/MarketOrderDetails.jsx, web/src/lib/marketOrders.js, web/src/lib/api.js, web/src/lib/router.js, web/src/App.jsx, web/src/styles.css. Extended the existing board with owned-market selection, backend-provided allowed transitions, status buttons, order-detail links, quantities and order age. Detail view shows persisted items and fulfillment snapshots. Unauthorized access is a real access state; empty columns remain empty. No orders or markets were inserted for UI population. Feature numbering now follows the continuation request: Feature 10 is Orders and Attention.
+
+**Verification:** 41 owner-dashboard/market tests pass; frontend production build passes; browser confirms anonymous dashboard access is blocked; git diff check passes.
+
+
+### Continuation checkpoint: Feature 10 Market Orders and Attention
+
+**Status:** Implemented and verified on 2026-09-26. This entry supersedes conflicting historical limitations above.
+
+Files: api/db.py, api/market_orders.py, tests/test_market_order_dashboard.py, web/src/pages/MarketOrders.jsx, web/src/pages/MarketDashboard.jsx, web/src/pages/MarketOrderDetails.jsx, web/src/lib/marketOrders.js, web/src/lib/marketOrders.test.js, web/src/lib/router.js, web/src/App.jsx, web/src/styles.css. Orders now support all five stage filters, All, and newest/oldest/highest-value sorting. Details use stored item and address snapshots and backend transition rules. Attention labels describe stage and elapsed time without invented deadlines or historical averages. Additive status-history triggers record new orders and transitions; pre-existing advanced stages are not backfilled with invented timestamps. Tracking edits cannot reset stage age.
+
+**Verification:** 11 order/dashboard tests pass; Node filter/sort/attention test passes; production build and git diff check pass.
+
+
+### Continuation checkpoint: Feature 11 Market Analytics
+
+**Status:** Implemented and verified on 2026-09-26. This entry supersedes conflicting historical limitations above.
+
+Files: api/market_analytics.py, api/main.py, tests/test_market_analytics.py, web/src/pages/MarketAnalytics.jsx, web/src/pages/MarketDashboard.jsx, web/src/lib/api.js, web/src/lib/router.js, web/src/App.jsx, web/src/styles.css. Owner-authorized analytics computes revenue, order count, average order value, top products, units and product revenue from paid order/item snapshots. Rolling UTC windows are 7, 30 and 365 days; prior-period percentages are omitted when undefined. Deleted catalog products retain historical names and prices. No chart library exists, so daily revenue is an accessible table without adding a dependency.
+
+**Verification:** 9 analytics/dashboard tests pass including ownership, period boundaries, historical prices and empty periods; production build passes.
+
+
+### Continuation checkpoint: Feature 12 Market Operational Metrics
+
+**Status:** Implemented and verified on 2026-09-26. This entry supersedes conflicting historical limitations above.
+
+Files: api/market_analytics.py, tests/test_market_analytics.py, web/src/pages/MarketOperations.jsx, web/src/pages/MarketDashboard.jsx, web/src/lib/api.js. Overview now shows open preparation, fulfilling, waiting-to-ship, ready-for-pickup, preparation-completed and all-time average order value metrics. Definitions explicitly distinguish preparation completion from delivery completion, which the schema does not track. Average fulfillment time includes only orders with recorded Fulfilling and Order Complete timestamps and reports its sample count; unavailable history produces an honest unavailable message.
+
+**Verification:** 4 analytics/operations tests pass including incomplete-history exclusion and empty data; production build passes.
+
+
+## Current Continuation Handoff, 2026-09-26
+
+This is the authoritative checkpoint for the marketplace continuation. Preserve the existing storefront, issuer boundary, buyer authentication, and current dirty worktree. Do not restart the implementation or discard existing changes.
+
+### Completed during this continuation
+
+1. **Database-backed selected-market repair.** Runtime storefront discovery, product catalog reads, typed shopping, Whisper shopping, and agentic shopping now use the selected persisted market. The browser sends the market ID to every shopping request. A failed switch retains the previous valid market, products, and header; empty markets show an honest empty state. The legacy hardcoded runtime market array was removed from the active shopping path.
+2. **Cart and Buy Again repair.** The shared cart hydrates current product metadata from the backend for all retained lines, including lines restored from session storage and Buy Again results. Buy Again only adds available current products to the existing cart, reports unavailable products and changed prices, and never creates a checkout, payment, or order.
+3. **Feature 8 repair.** The existing owner Kanban now handles market discovery and order-read failures correctly and does not update after unmount.
+4. **Feature 9, Market Order Board.** `#/market-dashboard` supports authenticated owned-market selection, real Kanban columns, order detail links, item counts, fulfillment method, total, order age, and backend-derived allowed transitions. The board never creates placeholder orders. Anonymous access displays the access state.
+5. **Feature 10, Market Orders and Attention.** `#/market-orders/{marketId}` supports All and every fulfillment-stage filter plus newest, oldest, and highest-value sorting. Details show persisted item, shipping or pickup, carrier/tracking, local-driver, total, and current status data. Attention text describes the current stage and elapsed time only. It does not call an order late or assert a deadline. New `market_order_status_history` rows are generated at order creation and on later status transitions; old records without history show unavailable stage time.
+6. **Feature 11, Market Analytics.** Owner-only `GET /markets/{marketId}/analytics?period=7D|30D|1Y` and `#/market-analytics/{marketId}` report historical revenue, order count, average order value, units, top products, product revenue, daily revenue, and mathematically valid prior-period revenue comparisons. Calculations use paid order and item snapshots, so deleted products remain in history with their purchased name and price.
+7. **Feature 12, Operational Metrics.** The overview shows real open-preparation, fulfilling, waiting-to-ship, ready-for-pickup, preparation-completed, and all-time average-order-value metrics. Average fulfillment time is shown only when the order has recorded Fulfilling-to-Order Complete timestamps, with the sample count.
+
+### Verified state
+
+- `npm --prefix web run build` passed after Features 9 through 12, most recently with 75 transformed modules.
+- `tests/test_storefront_scope.py`, `tests/test_shopping.py`, `tests/test_agentic_intent.py`, `tests/test_agentic_basket.py`, and `tests/test_commerce_agent.py` passed together: 53 tests.
+- The selected market, cart, buyer reorder, boundary, and market-order focused suite passed together: 32 tests.
+- `tests/test_market_order_dashboard.py` and `tests/test_market_orders.py` passed after Feature 10: 11 tests.
+- `tests/test_market_analytics.py` passed after Feature 12: 4 tests.
+- `node --test web/src/lib/marketOrders.test.js` passed.
+- `git diff --check` passed at each checkpoint.
+- Browser verification loaded `#/market-dashboard` anonymously and showed the intended market-owner access state. No test market, order, or demo business data was created to populate the UI.
+
+### Remaining work, in order
+
+1. **Feature 13, Market AI Insights.** This has not been implemented. Compute owner-scoped facts deterministically from persisted order, order-item, fulfillment-status, and analytics data first. If an OpenAI explanation is added, keep `OPENAI_API_KEY` server-side, set Responses API storage off, use strict structured output, and constrain the model to select or phrase supplied facts only. Do not permit invented numbers, deadlines, statuses, or elapsed times. The existing `api/openai_intent.py` demonstrates the repository's Responses API request shape and server-side key handling. Gracefully show an unavailable or no-insights state when no key or insufficient data exists.
+2. **Focused shared quality pass.** Check all added marketplace pages at desktop, tablet, and mobile widths; loading, empty, and error states; visible focus behavior; compact table overflow; and sidebar/header navigation. Do not add mock values to fill empty states.
+3. **Regression pass before handoff completion.** Run the combined focused suite, `npm --prefix web run build`, and `git diff --check`. Confirm storefront switching remains atomic, cart contents persist across switches, buyer dashboard/order details/Buy Again work, market data stays owner-scoped, status transitions remain backend-authorized, and no API key enters the client bundle.
+
+### Known limitations and deliberate boundaries
+
+- The marketplace browser cart remains compatible with the older issuer checkout route. New market-aware checkout APIs exist separately; do not silently merge or replace the purchase boundary without an explicit market-aware cart-to-checkout adapter.
+- Current market selection shows the first owned market when opening a dashboard route without a market ID. Selecting another owned market changes the dashboard route; it cannot enumerate another owner’s markets.
+- Carrier data is merchant-entered information only. There is no carrier polling, live driver tracking, inventory reservation, delivery completion state, or product inventory-count model.
+- Analytics reports recorded paid order totals, which are revenue for this UI, not profit. The daily revenue table is intentionally used instead of adding a charting dependency.
+- Feature 13 work was inspected but not started before the session interruption. No partial AI-insight implementation is expected.

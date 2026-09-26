@@ -181,3 +181,15 @@ def logout(
 @router.get("/me", response_model=Account)
 def me(owner: MarketOwner) -> Account:
     return owner
+
+
+@router.get("/session")
+def session_status(
+    session_token: Annotated[str | None, Cookie(alias=MARKET_SESSION_COOKIE)] = None,
+) -> dict:
+    """Public storefront-safe session probe. Owner routes remain protected."""
+    try:
+        account = current_account_for_role(session_token, "MARKET_OWNER", "market owner login required")
+    except HTTPException:
+        return {"account": None}
+    return {"account": account.model_dump()}

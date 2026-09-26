@@ -52,7 +52,7 @@ class CatalogProduct(BaseModel):
     price_cents: int
     image_url: str
     image_credit: str
-    market: str = "grocer"
+    market: str = ""
 
 
 class ProductMatch(BaseModel):
@@ -148,7 +148,7 @@ def search_products(intent: FinalShoppingIntent, catalog: list[dict],
         if not sold_here:
             return [], "The requested merchant is not this store."
         if shop:
-            catalog = [raw for raw in catalog if raw.get("market", "grocer") == shop]
+            catalog = [raw for raw in catalog if raw.get("market") == shop]
     if intent.currency and intent.currency.upper() != "USD":
         return [], "This catalog is priced in USD, so Timbre will not convert the confirmed budget."
 

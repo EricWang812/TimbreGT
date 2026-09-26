@@ -16,6 +16,17 @@ function parse(hash) {
   if (path === "/checkout") return { name: "checkout" };
   if (path === "/baseline") return { name: "baseline" };
   if (path === "/dashboard") return { name: "dashboard" };
+  if (path === "/buyer-dashboard") return { name: "buyer-dashboard" };
+  const analytics = path.match(/^\/market-analytics(?:\/([^/]+))?$/);
+  if (analytics) return { name: "market-analytics", marketId: analytics[1] };
+  const marketOrders = path.match(/^\/market-orders(?:\/([^/]+))?$/);
+  if (marketOrders) return { name: "market-orders", marketId: marketOrders[1] };
+  const managed = path.match(/^\/market-dashboard\/([^/]+)(?:\/orders\/([^/]+))?$/);
+  if (managed) return { name: "market-dashboard", marketId: managed[1], orderId: managed[2] };
+  if (path === "/market-dashboard") return { name: "market-dashboard" };
+  if (path === "/buyer-orders") return { name: "buyer-orders" };
+  const buyerOrder = path.match(/^\/buyer-orders\/([0-9a-f-]{36})$/i);
+  if (buyerOrder) return { name: "buyer-order", orderId: buyerOrder[1] };
   return { name: "shop" };
 }
 

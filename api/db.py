@@ -106,6 +106,7 @@ CREATE TABLE IF NOT EXISTS markets (
     owner_account_id  TEXT NOT NULL REFERENCES accounts(id) ON DELETE RESTRICT,
     primary_color     TEXT NOT NULL DEFAULT '#126B5B',
     logo_url          TEXT,
+    description       TEXT,
     pickup_enabled    INTEGER NOT NULL DEFAULT 0 CHECK (pickup_enabled IN (0, 1)),
     shipping_enabled  INTEGER NOT NULL DEFAULT 0 CHECK (shipping_enabled IN (0, 1)),
     created_at        TEXT NOT NULL
@@ -145,6 +146,8 @@ CREATE TABLE IF NOT EXISTS market_products (
     id              TEXT PRIMARY KEY,
     market_id       TEXT NOT NULL REFERENCES markets(id) ON DELETE RESTRICT,
     name            TEXT NOT NULL CHECK (length(trim(name)) > 0),
+    brand           TEXT,
+    category        TEXT,
     price_cents     INTEGER NOT NULL CHECK (price_cents >= 0),
     photo_url       TEXT,
     quantity_value  REAL,
@@ -217,6 +220,14 @@ CREATE INDEX IF NOT EXISTS idx_market_orders_market
 
 CREATE INDEX IF NOT EXISTS idx_market_orders_buyer
     ON market_orders(buyer_account_id);
+
+CREATE TABLE IF NOT EXISTS market_order_status_history (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    order_id TEXT NOT NULL REFERENCES market_orders(id) ON DELETE CASCADE,
+    status TEXT NOT NULL,
+    entered_at TEXT NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_order_status_history ON market_order_status_history(order_id, id);
 
 CREATE TABLE IF NOT EXISTS market_order_items (
     id                  TEXT PRIMARY KEY,
@@ -365,6 +376,8 @@ def init_db() -> None:
             conn.execute("ALTER TABLE markets ADD COLUMN primary_color TEXT NOT NULL DEFAULT '#126B5B'")
         if "logo_url" not in market_columns:
             conn.execute("ALTER TABLE markets ADD COLUMN logo_url TEXT")
+        if "description" not in market_columns:
+            conn.execute("ALTER TABLE markets ADD COLUMN description TEXT")
         if "pickup_enabled" not in market_columns:
             conn.execute("ALTER TABLE markets ADD COLUMN pickup_enabled INTEGER NOT NULL DEFAULT 0")
         if "shipping_enabled" not in market_columns:
@@ -379,6 +392,10 @@ def init_db() -> None:
             conn.execute("ALTER TABLE market_products ADD COLUMN quantity_value REAL")
         if "quantity_unit" not in product_columns:
             conn.execute("ALTER TABLE market_products ADD COLUMN quantity_unit TEXT")
+        if "brand" not in product_columns:
+            conn.execute("ALTER TABLE market_products ADD COLUMN brand TEXT")
+        if "category" not in product_columns:
+            conn.execute("ALTER TABLE market_products ADD COLUMN category TEXT")
         checkout_columns = {row["name"] for row in conn.execute("PRAGMA table_info(market_checkout_sessions)")}
         if "authorization_instruction_id" not in checkout_columns:
             conn.execute("ALTER TABLE market_checkout_sessions ADD COLUMN authorization_instruction_id TEXT")
@@ -402,6 +419,19 @@ def init_db() -> None:
         conn.executescript(QUANTITY_VALIDATION_TRIGGERS)
         conn.executescript(PICKUP_VALIDATION_TRIGGERS)
         conn.executescript(SHIPPING_VALIDATION_TRIGGERS)
+        conn.executescript("""
+        CREATE TRIGGER IF NOT EXISTS record_initial_order_status AFTER INSERT ON market_orders
+        BEGIN
+          INSERT INTO market_order_status_history(order_id, status, entered_at)
+          VALUES (NEW.id, NEW.fulfillment_status, NEW.created_at);
+        END;
+        CREATE TRIGGER IF NOT EXISTS record_order_status_change AFTER UPDATE OF fulfillment_status ON market_orders
+        WHEN NEW.fulfillment_status != OLD.fulfillment_status
+        BEGIN
+          INSERT INTO market_order_status_history(order_id, status, entered_at)
+          VALUES (NEW.id, NEW.fulfillment_status, NEW.updated_at);
+        END;
+        """)
     finally:
         conn.close()
 

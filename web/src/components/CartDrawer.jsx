@@ -8,7 +8,6 @@ import { useAnnounce } from "../lib/announce.jsx";
 import { quoteCart } from "../lib/api.js";
 import { formatCents } from "../lib/money.js";
 import { navigate } from "../lib/router.js";
-import { shopNameFor, shopOf, useStoreInfo } from "../lib/shops.js";
 import { CheckIcon, CloseIcon, MicIcon, MinusIcon, PlusIcon, TrashIcon } from "./Icons.jsx";
 
 const VOICE_BUTTON_TEXT = "Speak an item";
@@ -51,7 +50,6 @@ function FreeDeliveryMeter({ subtotal, threshold }) {
 }
 
 export default function CartDrawer({ open, onClose, products }) {
-  const { markets } = useStoreInfo();
   const dialogRef = useRef(null);
   const keepShoppingRef = useRef(null);
   const cart = useCart();
@@ -174,14 +172,14 @@ export default function CartDrawer({ open, onClose, products }) {
               {cart.lines.map(({ productId, quantity }, index) => {
                 const p = products[productId];
                 const name = p ? p.name : "Loading item…";
-                const shop = shopNameFor(p, markets);
+                const shop = p?.marketName ?? null;
                 return (
                   <li key={productId} className="drawer-line">
                     {p
                       ? <img className="drawer-thumb" src={p.image_url} alt="" width="64" height="64" />
                       : <span className="drawer-thumb" aria-hidden="true" />}
                     <div className="drawer-line-info">
-                      {shop && <p className="line-shop" data-market={shopOf(p)}>{shop}</p>}
+                      {shop && <p className="line-shop">{shop}</p>}
                       {p && <p className="drawer-line-brand">{p.brand}</p>}
                       <h3 className="drawer-line-name">{name}</h3>
                       {p && <p className="drawer-line-unit">{quantity} × {formatCents(p.price_cents)}</p>}

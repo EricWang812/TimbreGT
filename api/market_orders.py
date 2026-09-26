@@ -271,10 +271,14 @@ def market_order_dashboard(market_id: str, owner: MarketOwner) -> dict:
                 "SELECT product_id, product_name, price_cents, amount, quantity_value, quantity_unit "
                 "FROM market_order_items WHERE order_id = ? ORDER BY id", (order["id"],)
             ).fetchall()
+            history = conn.execute("SELECT status, entered_at FROM market_order_status_history WHERE order_id = ? ORDER BY id", (order["id"],)).fetchall()
+            stage_since = history[-1]["entered_at"] if history else (order["created_at"] if order["fulfillment_status"] == "NOT_STARTED" else None)
             result.append({
+                "stageSince": stage_since,
+                "statusHistory": [{"status": h["status"], "enteredAt": h["entered_at"]} for h in history],
                 "id": order["id"], "marketId": order["market_id"], "items": [dict(item) for item in items],
                 "totalCents": order["total_cents"], "fulfillmentMethod": order["fulfillment_method"],
-                "status": order["fulfillment_status"], "shippingAddress": json.loads(order["shipping_address_json"]) if order["shipping_address_json"] else None,
+                "status": order["fulfillment_status"], "allowedTransitions": [s for s in sorted(_VALID_TRANSITIONS[order["fulfillment_status"]]) if s not in {"SHIPPING", "READY_FOR_PICKUP"} or s == ("SHIPPING" if order["fulfillment_method"] == "SHIP" else "READY_FOR_PICKUP")], "shippingAddress": json.loads(order["shipping_address_json"]) if order["shipping_address_json"] else None,
                 "pickupAddress": json.loads(order["pickup_address_json"]) if order["pickup_address_json"] else None,
                 "carrier": order["carrier"], "trackingNumber": order["tracking_number"],
                 "localDriver": bool(order["local_driver"]),
@@ -331,6 +335,26 @@ def buyer_order_details(order_id: str, buyer: Buyer) -> dict:
         "deliveryMessage": "A local driver is handling this delivery." if order["local_driver"] else None,
         "createdAt": order["created_at"],
     }
+
+
+@router.post("/orders/{order_id}/buy-again")
+def buyer_buy_again(order_id: str, buyer: Buyer) -> dict:
+    """Resolve a past order against current products without changing a cart or checkout."""
+    with transaction() as conn:
+        order = conn.execute("SELECT market_id FROM market_orders WHERE id = ? AND buyer_account_id = ?", (order_id, buyer.id)).fetchone()
+        if order is None:
+            raise HTTPException(status.HTTP_404_NOT_FOUND, "order not found")
+        snapshots = conn.execute("SELECT product_id, price_cents, amount FROM market_order_items WHERE order_id = ?", (order_id,)).fetchall()
+        ids = [row["product_id"] for row in snapshots]
+        if not ids:
+            return {"items": [], "unavailable": [], "priceChanged": []}
+        marks = ", ".join("?" for _ in ids)
+        current = conn.execute(f"SELECT id, price_cents FROM market_products WHERE market_id = ? AND id IN ({marks})", (order["market_id"], *ids)).fetchall()
+    products = {row["id"]: row for row in current}
+    available = [row for row in snapshots if row["product_id"] in products]
+    return {"items": [{"productId": row["product_id"], "quantity": row["amount"]} for row in available],
+            "unavailable": [row["product_id"] for row in snapshots if row["product_id"] not in products],
+            "priceChanged": [row["product_id"] for row in available if products[row["product_id"]]["price_cents"] != row["price_cents"]]}
 
 
 @owner_router.patch("/{market_id}/orders/{order_id}/status")

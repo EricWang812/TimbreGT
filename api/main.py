@@ -15,10 +15,12 @@ from api.checkout import router as checkout_router
 from api.config import WEB_ORIGIN
 from api.db import init_db
 from api.fulfillment_selection import router as fulfillment_selection_router
+from api.market_analytics import router as market_analytics_router
 from api.market_auth import router as market_auth_router
 from api.market_orders import owner_router as market_order_dashboard_router, router as market_orders_router
 from api.market_products import router as market_products_router
 from api.marketplace_catalog import router as marketplace_catalog_router
+from api.storefront import router as storefront_router
 from api.markets import router as markets_router
 from api.shopping import router as shopping_router
 
@@ -39,10 +41,12 @@ app.include_router(buyer_auth_router)
 app.include_router(buyer_addresses_router)
 app.include_router(fulfillment_selection_router)
 app.include_router(market_orders_router)
+app.include_router(market_analytics_router)
 app.include_router(market_order_dashboard_router)
 app.include_router(markets_router)
 app.include_router(market_products_router)
 app.include_router(marketplace_catalog_router)
+app.include_router(storefront_router)
 
 app.add_middleware(
     CORSMiddleware,

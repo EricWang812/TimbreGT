@@ -89,6 +89,13 @@ export const CheckIcon = (p) => (
   </Icon>
 );
 
+export const UserIcon = (p) => (
+  <Icon {...p}>
+    <circle cx="12" cy="8" r="4" />
+    <path d="M4 21a8 8 0 0 1 16 0" />
+  </Icon>
+);
+
 // Boardwalk shop signs (shapes after Lucide, ISC license).
 export const FishIcon = (p) => (
   <Icon {...p}>

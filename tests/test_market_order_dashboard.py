@@ -35,6 +35,10 @@ def test_owner_status_machine_requires_ordered_pickup_transitions():
             conn.execute("INSERT INTO market_orders (id, instruction_id, buyer_account_id, market_id, subtotal_cents, total_cents, fulfillment_method, status, transaction_id, shipping_address_json, pickup_address_json, created_at, updated_at) VALUES ('status-order', 'status-session', ?, ?, 100, 100, 'PICKUP', 'NOT_STARTED', 'txn', NULL, '{}', 'now', 'now')", (owner["id"], market["id"]))
         assert client.patch(f"/markets/{market['id']}/orders/status-order/status", json={"status": "SHIPPING"}).status_code == 422
         assert client.patch(f"/markets/{market['id']}/orders/status-order/status", json={"status": "FULFILLING"}).json()["status"] == "FULFILLING"
+        current = client.get(f"/markets/{market['id']}/orders").json()["orders"][0]
+        assert current["allowedTransitions"] == ["ORDER_COMPLETE"]
+        assert current["statusHistory"][-1]["status"] == "FULFILLING"
+        assert current["stageSince"] == current["statusHistory"][-1]["enteredAt"]
         assert client.patch(f"/markets/{market['id']}/orders/status-order/status", json={"status": "ORDER_COMPLETE"}).json()["status"] == "ORDER_COMPLETE"
         done = client.patch(f"/markets/{market['id']}/orders/status-order/status", json={"status": "READY_FOR_PICKUP"})
     assert done.json()["status"] == "READY_FOR_PICKUP"

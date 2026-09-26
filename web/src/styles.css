@@ -201,6 +201,19 @@ p { margin: 0; }
   /* A9 fallback: a static 1px divider. A box-shadow, so the header stays 64px. */
   box-shadow: 0 1px 0 var(--divider);
 }
+
+.market-brand-logo,
+.market-search-logo {
+  width: 28px;
+  height: 28px;
+  object-fit: contain;
+  border-radius: 50%;
+}
+
+.market-search-logo {
+  width: 20px;
+  height: 20px;
+}
 /* A9: the shadow grows over the first 64px of scroll. Never hides on scroll. */
 @supports (animation-timeline: scroll()) {
   .site-header {
@@ -250,6 +263,13 @@ p { margin: 0; }
 }
 /* padding-block keeps the badge inside a 44px button, so the header is exactly --header-h. */
 .cart-button { border-radius: var(--radius-pill); padding-block: var(--space-1); padding-inline: var(--space-4) var(--space-2); }
+.account-menu { position: relative; }
+.account-menu summary { display: grid; place-items: center; width: var(--tap); height: var(--tap); border: 2px solid var(--control-border); border-radius: 50%; cursor: pointer; list-style: none; }
+.account-menu summary::-webkit-details-marker { display: none; }
+.account-menu-panel { position: absolute; right: 0; top: calc(100% + var(--space-2)); z-index: 10; display: grid; min-width: 13rem; padding: var(--space-2); border: 1px solid var(--divider); border-radius: var(--radius); background: var(--surface); box-shadow: var(--shadow-2); }
+.account-menu-panel a, .account-menu-panel button { min-height: 44px; padding: var(--space-2) var(--space-3); border: 0; border-radius: var(--radius-sm); background: transparent; color: var(--ink); font: inherit; text-align: left; text-decoration: none; cursor: pointer; }
+.account-menu-panel a:hover, .account-menu-panel button:hover { background: var(--tint); }
+.account-menu-panel .note { padding: var(--space-2); margin: 0; font-size: .875rem; }
 .brand {
   display: inline-flex;
   align-items: center;
@@ -260,6 +280,15 @@ p { margin: 0; }
   text-decoration: none;
 }
 .brand svg { flex: none; }
+.market-switcher { border: 0; background: transparent; cursor: pointer; }
+.market-search-backdrop { position: fixed; inset: 0; z-index: 30; display: grid; place-items: start center; padding: 12vh var(--space-4); background: rgb(15 23 42 / .42); }
+.market-search { width: min(42rem, 100%); padding: var(--space-6); border-radius: var(--radius); background: var(--surface); box-shadow: var(--shadow-2); }
+.market-search h2 { margin-top: 0; }
+.market-search input { width: 100%; min-height: 48px; padding: var(--space-3); border: 2px solid var(--control-border); border-radius: var(--radius); font: inherit; }
+.market-search ul { display: grid; gap: var(--space-2); max-height: 50vh; margin: var(--space-4) 0; padding: 0; overflow: auto; list-style: none; }
+.market-search li button { display: grid; grid-template-columns: auto 1fr; gap: 0 var(--space-3); width: 100%; min-height: 52px; padding: var(--space-3); border: 0; border-radius: var(--radius-sm); background: var(--tint); color: var(--ink); font: inherit; text-align: left; cursor: pointer; }
+.market-search li button:hover { background: var(--divider); }
+.market-search li small { grid-column: 2; color: var(--text-muted); }
 .cart-count {
   display: inline-grid;
   place-items: center;
@@ -963,13 +992,15 @@ pre.mono {
   box-shadow: var(--shadow);
 }
 /* On the banner the awning hangs over the shop color, so its stripes are light. */
-.shop-banner .shop-awning { height: 26px; background: repeating-linear-gradient(90deg, #ffffff 0 22px, var(--shop-tint) 22px 44px); }
+.shop-banner .shop-awning { height: 26px; background: var(--band); }
 .shop-banner-body {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
   gap: var(--space-3) var(--space-4);
   padding: var(--space-3) var(--space-6) var(--space-6);
+  background: var(--band);
+  color: #ffffff;
 }
 .shop-banner h2 { color: #ffffff; font-size: 1.75rem; }
 .shop-banner :focus-visible { outline-color: #ffffff; }
@@ -1015,3 +1046,34 @@ pre.mono {
   font-size: 0.8125rem;
   font-weight: 800;
 }
+
+/* Owner workspace keeps the storefront intact and contains its own board. */
+.market-management { min-width: 0; }
+.management-actions { display: flex; flex-wrap: wrap; gap: 1rem; align-items: center; }
+.management-actions a { padding: .65rem .9rem; border: 1px solid currentColor; border-radius: .5rem; }
+.management-select { display: grid; gap: .4rem; max-width: 28rem; }
+.management-select select, .management-controls select { min-height: 44px; padding: .6rem; max-width: 100%; }
+.order-board { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 1rem; align-items: start; }
+.order-column { min-width: 0; background: #f2f5f3; padding: 1rem; border-radius: .75rem; }
+.order-column h3 { font-size: 1rem; }
+.order-cards { list-style: none; padding: 0; display: grid; gap: .8rem; }
+.order-card { background: white; padding: .9rem; border: 1px solid #cbd6ce; border-radius: .5rem; display: grid; gap: .6rem; overflow-wrap: anywhere; }
+.order-card p { margin: 0; }
+.order-card .btn { white-space: normal; font-size: .85rem; }
+.order-detail { overflow-wrap: anywhere; }
+.order-detail address { font-style: normal; }
+@media (max-width: 1100px) { .order-board { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+@media (max-width: 600px) { .order-board { grid-template-columns: minmax(0, 1fr); } }
+
+.management-controls { display: flex; flex-wrap: wrap; gap: 1rem; }
+.management-controls label { display: grid; gap: .4rem; }
+.order-list { list-style: none; padding: 0; display: grid; gap: 1rem; }
+.order-attention { border-left: 3px solid #806119; padding-left: .65rem; color: #59430c; font-size: .9rem; }
+
+.metric-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(155px, 1fr)); gap: 1rem; }
+.metric-grid > div { padding: 1rem; background: #f2f5f3; border-radius: .5rem; }
+.metric-grid dt { font-size: .9rem; }
+.metric-grid dd { margin: .5rem 0 0; font-size: 1.6rem; font-weight: 700; }
+.table-scroll { max-width: 100%; overflow-x: auto; }
+.management-table { width: 100%; border-collapse: collapse; text-align: left; }
+.management-table th, .management-table td { padding: .8rem; border-bottom: 1px solid #cbd6ce; }

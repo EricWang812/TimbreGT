@@ -83,3 +83,15 @@ def logout(
 @router.get("/me", response_model=BuyerAccount)
 def me(buyer: Buyer) -> BuyerAccount:
     return buyer
+
+
+@router.get("/session")
+def session_status(
+    session_token: Annotated[str | None, Cookie(alias=BUYER_SESSION_COOKIE)] = None,
+) -> dict:
+    """Public storefront-safe session probe. Protected routes still use Buyer."""
+    try:
+        account = current_account_for_role(session_token, "BUYER", "buyer login required")
+    except HTTPException:
+        return {"account": None}
+    return {"account": BuyerAccount.model_validate(account.model_dump()).model_dump()}
