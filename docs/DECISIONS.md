@@ -179,3 +179,15 @@ Style rule: do not use em dashes.
 - **Latency per take (CPU, this laptop):** CAM++ 53 ms, ResNet34 57 ms, ResNet221 276 ms, SpeechBrain ResNet about 2.7 s (disqualified by the 2 s target).
 - **Alternatives rejected:** Adopting ECAPA + ResNet34 now on evaluation numbers (tuning on evaluation speakers, ADR 6). Relaxing the FRR budget for ResNet221.
 - **Consequences:** Nothing changes live. To adopt a fusion honestly, confirm it on data it was not chosen on: a second dysarthric corpus (for example UA-Speech, which needs a license request) or real enrollments. If the team adopts ECAPA + ResNet34 anyway, record it as a post-hoc choice, credit the CC-BY-4.0 model, move the encoder into ml/encoder.py (§6), recompute templates from stored samples, and retune `GLOBAL_FLOOR` and `THRESHOLD_MARGIN` for the fused scale.
+
+---
+
+## 9. Fusion rejected on independent data; the live design holds on EasyCall
+
+- **Date:** 2026-09-26
+- **Status:** accepted
+- **Context:** ADR 8 left ECAPA + ResNet34 fusion as a lead chosen post hoc. It was tested once on EasyCall (Italian dysarthric command corpus, 30 evaluation speakers) under docs/PREREGISTRATION.md and Amendment 1, both committed before any EasyCall score existed.
+- **Decision:** Keep ECAPA alone. Fusion failed the pre-registered rule (worse control EER, higher FAR in both groups); see the Outcome section of docs/PREREGISTRATION.md.
+- **What the same run showed about the live configuration:** with the product's own protocol (five takes of one repeated command, the rest as probes from other sessions) and the live policy, ECAPA reached EER 0.29% (control) and 2.43% (dysarthric); at a margin of 0.119, FAR 0.02% and 0.23% with FRR 4.40% and 7.95%. Against the tougher same-word attacker (exploratory, not pre-registered): dysarthric EER 2.84%, FAR 0.63%, FRR 7.30% at the live margin. The text-independent check on the same speakers gave 8.75% dysarthric EER, the same as TORGO, which supports designing enrollment around a repeated personal sound.
+- **Alternatives rejected:** Adopting fusion on its single passing sub-check (dysarthric EER). Re-running with other encoders or margins on EasyCall (the pre-registration forbids it).
+- **Consequences:** No live change. The numbers that may be quoted, always with these caveats: one corpus, Italian, 8 kHz audio upsampled, corpus impostors rather than trained imitators or synthetic voices, correlated trials, not a population claim, and the same-word figures are exploratory. The fusion code stays for reproducibility. UA-Speech (with a UIUC license) or real enrollments remain the next independent checks.

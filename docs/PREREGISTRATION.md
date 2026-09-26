@@ -96,3 +96,27 @@ and adoption rule above are unchanged.
    other templates are never impostors. Measured eligibility under the live
    quality check: 23 control and 21 dysarthric speakers, 572 and 696
    templates, about 696 genuine probes per group before the split.
+
+## Outcome (2026-09-26, recorded after the single run)
+
+**F is not adopted; the fusion lead is closed for this corpus.** On 30
+evaluation speakers (1268 templates; 432 control and 453 dysarthric genuine
+trials; margins R 0.119, F 0.107, both calibrated to a 5.72% calibration FRR),
+F failed three of five checks:
+
+| Config | Group | EER | FAR | FRR |
+|---|---|---:|---:|---:|
+| R: ECAPA (live) | control | 0.29% | 0.02% | 4.40% |
+| R: ECAPA (live) | dysarthric | 2.43% | 0.23% | 7.95% |
+| F: ECAPA + ResNet34 | control | 0.69% | 0.07% | 5.79% |
+| F: ECAPA + ResNet34 | dysarthric | 1.94% | 0.34% | 6.18% |
+
+Checks: lower EER control false, lower EER dysarthric true, lower FAR control
+false, lower FAR dysarthric false, dysarthric FRR within budget true. The
+secondary P2 (text-independent) agreed: EER R 4.45% and 8.75%, F 5.80% and
+11.45%. Full output: `docs/confirm_results.md` (regenerate with `make confirm`).
+
+An exploratory rescoring that was not pre-registered (`scripts/run_same_word.py`)
+replaced impostors with other speakers saying the same command, the realistic
+attacker. Live R at margin 0.12: control EER 0.69%, FAR 0.11%, FRR 4.40%;
+dysarthric EER 2.84%, FAR 0.63%, FRR 7.30%.

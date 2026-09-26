@@ -24,6 +24,16 @@ alternatives considered and why they were rejected.
 
 ---
 
+### 2026-09-26 06:10 - EasyCall confirmation: fusion rejected, live design holds (ADR 9)
+
+- **Files:** docs/PREREGISTRATION.md (Outcome), docs/DECISIONS.md (ADR 9), docs/RESEARCH.md, AGENTS.md, scripts/run_same_word.py (new, exploratory), .gitignore.
+- **What:** Ran `make confirm` once as pre-registered. ECAPA + ResNet34 failed 3 of 5 checks, so ECAPA stays alone and the fusion lead is closed. The live configuration measured, on 30 independent evaluation speakers with the product's repeated-sound protocol: EER 0.29% control and 2.43% dysarthric (FAR 0.02% and 0.23%, FRR 4.40% and 7.95%). An exploratory same-word attacker rescoring gave dysarthric EER 2.84%, FAR 0.63%, FRR 7.30% at the live margin.
+- **Why:** The recommended path from ADR 8: confirm on data the configuration was not chosen on.
+- **Verify:** `make confirm` (about 40 minutes the first time; cached after), then `python -m scripts.run_same_word`; compare with the Outcome table in docs/PREREGISTRATION.md.
+- **Risk/Notes:** Caveats in ADR 9 travel with every number: one Italian corpus, 8 kHz upsampled, corpus impostors only, correlated trials. The same-word figures are exploratory. EasyCall is CC BY-NC 2.0 and stays under gitignored data/.
+
+---
+
 ### 2026-09-26 05:45 - ADR 1: Visa Intelligent Commerce mapping
 
 - **Files:** docs/DECISIONS.md (ADR 1).

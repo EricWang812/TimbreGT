@@ -94,6 +94,13 @@ EER for both groups in three of four pairings (for example ECAPA + ResNet34:
 control 6.60% to 5.15%, dysarthric 8.75% to 5.67%). That is a lead to confirm
 on independent data, not a result we can claim.
 
+**Pre-registered confirmation on EasyCall (ADR 9).** The fusion lead failed
+on independent data and is closed. The same run measured the live design with
+its own protocol (five takes of one repeated sound): dysarthric EER 2.43%,
+and 2.84% against a same-word attacker (exploratory). The text-independent
+check on the same speakers gave 8.75%, so the repeated personal sound, not a
+new model, is what carried the accuracy on this corpus.
+
 What would move the needle, in order: a larger development cohort from another
 corpus (so selection is trustworthy), then a stronger or second embedding model
 (plan Phase 4). Full table: `docs/variants_results.md` after `make variants`.
