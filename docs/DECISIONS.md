@@ -22,20 +22,23 @@ Style rule: do not use em dashes.
 
 ---
 
-## 1. Visa Intelligent Commerce mapping (write this during the event)
+## 1. Visa Intelligent Commerce mapping
 
-Required for the Devpost submission. For each step of our flow, name the VIC
-capability it corresponds to:
+- **Date:** 2026-09-26
+- **Status:** accepted (mapping only; we have no Intelligent Commerce access, §9.1)
+- **Context:** Visa Intelligent Commerce (VIC) is gated, so Timbre ships on Stripe test mode behind the `PaymentProvider` interface (§9.3). The Visa challenge scores platform fluency, so this records where Timbre would sit in VIC, using Visa's own capability names from its developer page (developer.visa.com/capabilities/visa-intelligent-commerce): **Tokenization**, **Authentication** ("step up verification of the cardholder and set up a Passkey that will be used to authenticate Payment Instructions"), **Payment Instructions**, and **Signals**.
+- **Decision:** Position Timbre as an issuer-side step-up verification method inside VIC's Authentication capability, one that works for cardholders whose speech other voice checks reject, with the passkey as the fallback VIC already defines.
 
-| Timbre step | VIC capability |
-|---|---|
-| Card enrollment in setup | payment token provisioning and lifecycle |
-| Acoustic verification at approval | precedes cardholder step-up verification |
-| Passkey fallback | passkey management |
-| instruction_id binding | user instruction controls |
-| Receipt and outcome reporting | commerce signals |
+| Timbre step (code) | VIC capability | How it maps | Honest gap |
+|---|---|---|---|
+| Card tokenized at seeding; the issuer holds only a token reference and last four (`PaymentProvider.create_token`, `payment_tokens` table) | Tokenization | The same "no card number leaves the issuer" rule as a network token | Ours is a Stripe PaymentMethod, not a VIC agent-specific token |
+| Voice approval: two of the person's own sounds, personal threshold, replay check (`issuer/approvals.py` `voice`) | Authentication: step-up verification of the cardholder | Timbre is a step-up method the issuer chooses, like a 3-D Secure challenge (ADR 2) | VIC does not publish a hook for issuer-defined step-up methods that we could find |
+| Passkey fallback and step-up at or above $50 (`issuer/webauthn_routes.py`) | Authentication: Passkey set-up and use | Real WebAuthn passkeys, registered at the bank and asserted at checkout | Ours are our own WebAuthn credentials, not Visa Payment Passkeys |
+| `instruction_id` created when the shopper confirms a cart, bound to the approval and sent with the authorization (`authorize(..., instruction_id)`, Stripe metadata) | Payment Instructions | One confirmed instruction per purchase; the authorization must carry it, so a verification cannot be reused for a different charge | No standing limits or categories; each instruction is a single cart |
+| Outcome reported after settlement (`PaymentProvider.report_outcome`); the merchant learns only `{verified, transaction_id}` | Signals | The instruction plus the outcome is the record VIC uses for disputes | On Stripe the signal is only logged |
 
-Status: not yet written. Owner: integration and pitch role.
+- **Alternatives rejected:** Claiming a VIC integration we do not have (§2.6). Building against guessed VIC endpoints (§13.3).
+- **Consequences:** A `VisaProvider` would implement the same interface: `create_token` over Tokenization, `authorize` carrying the Payment Instruction, `report_outcome` over Signals, with Timbre's voice check as the Authentication step. The pitch line: "Timbre is the step-up method VIC's Authentication capability needs for cardholders whose speech other checks reject, and it falls back to the passkey VIC already specifies." Owner for the Devpost wording: integration and pitch role.
 
 ---
 

@@ -24,6 +24,16 @@ alternatives considered and why they were rejected.
 
 ---
 
+### 2026-09-26 05:45 - ADR 1: Visa Intelligent Commerce mapping
+
+- **Files:** docs/DECISIONS.md (ADR 1).
+- **What:** Replaced the stub with a mapping from each Timbre step, with its code location, to VIC's published capabilities (Tokenization, Authentication with step-up verification and passkeys, Payment Instructions, Signals), with an honest gap column for each row.
+- **Why:** Phase 10 and §9.2: platform fluency is scored, and the Devpost needs this without claiming an integration we do not have.
+- **Verify:** Read ADR 1; capability names and quotes match developer.visa.com/capabilities/visa-intelligent-commerce (checked 2026-09-26).
+- **Risk/Notes:** No VIC access; every row states its gap. Devpost wording still to be written by the pitch owner.
+
+---
+
 ### 2026-09-26 05:30 - Keyword fallback no longer suggests from one shared word
 
 - **Files:** api/llm.py (`words`, `keyword_match`), api/config.py (`KEYWORD_MIN_QUERY_COVERAGE`, `FILLER_WORDS`), tests/test_shopping.py.
