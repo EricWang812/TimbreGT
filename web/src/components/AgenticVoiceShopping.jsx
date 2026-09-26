@@ -16,6 +16,8 @@ import {
   requestStandardVoiceFallback,
 } from "./jump.js";
 
+const AGENTIC_TEXT_MAX = 1000;   // matches api/config.py AGENTIC_TEXT_MAX
+
 const LABELS = {
   product: "Item", quantity: "Quantity", maxPrice: "Price limit", brand: "Brand",
   size: "Size", color: "Color", merchantPreference: "Merchant", useCase: "Use",
@@ -63,6 +65,8 @@ export default function AgenticVoiceShopping({ onOpenCart }) {
   const [result, setResult] = useState(null);
   const [skip, setSkip] = useState([]);
   const [correction, setCorrection] = useState("");
+  const [typed, setTyped] = useState("");
+  const [typedSource, setTypedSource] = useState(false);
 
   latestLines.current = cart.lines;
   const question = resolution?.pendingClarifications?.[0] ?? null;
@@ -146,19 +150,25 @@ export default function AgenticVoiceShopping({ onOpenCart }) {
     }
   }
 
+  // Spoken and typed requests share everything after the words are known.
+  async function interpret(text, signal, currentRun) {
+    setRawTranscript(text);
+    setPhase("interpreting");
+    const extracted = await extractAgenticBasket(text, signal);
+    if (currentRun !== run.current) return;
+    setExtraction(extracted);
+    const state = await startBasketClarifications(extracted, signal);
+    if (currentRun !== run.current) return;
+    await continueResolution(state, signal, currentRun);
+  }
+
   async function processAudio(wav, currentRun) {
     await guarded(currentRun, async (signal) => {
       setPhase("transcribing");
       const transcription = await transcribeAgenticShopping(wav, signal);
       if (currentRun !== run.current) return;
-      setRawTranscript(transcription.transcript);
-      setPhase("interpreting");
-      const extracted = await extractAgenticBasket(transcription.transcript, signal);
-      if (currentRun !== run.current) return;
-      setExtraction(extracted);
-      const state = await startBasketClarifications(extracted, signal);
-      if (currentRun !== run.current) return;
-      await continueResolution(state, signal, currentRun);
+      setTypedSource(false);
+      await interpret(transcription.transcript, signal, currentRun);
     }, (err) => {
       if (err.status === 503 && requestStandardVoiceFallback(wav)) {
         setPhase("error");
@@ -201,6 +211,22 @@ export default function AgenticVoiceShopping({ onOpenCart }) {
     }
   }
 
+  async function submitTyped(event) {
+    event.preventDefault();
+    const text = typed.trim();
+    if (!text || busy || listening) return;
+    reset();
+    const currentRun = run.current;
+    setTypedSource(true);
+    setTyped("");
+    await guarded(currentRun, (signal) => interpret(text, signal, currentRun), (err) => {
+      setPhase("error");
+      setMessage(err.status === 503
+        ? "Agentic shopping is unavailable right now. Your cart was not changed."
+        : err.message || "Timbre could not process that request. Your cart was not changed.");
+    });
+  }
+
   async function answer(action, value) {
     if (!question || busy) return;
     const currentRun = run.current;
@@ -234,8 +260,8 @@ export default function AgenticVoiceShopping({ onOpenCart }) {
 
   return <section className="agentic-shopping stack" aria-labelledby={AGENTIC_VOICE_TITLE_ID}>
     <div className="section-head agentic-head">
-      <div><p className="eyebrow">New agentic path</p><h2 id={AGENTIC_VOICE_TITLE_ID} tabIndex={-1}>Shop a full request by voice</h2></div>
-      <p className="note">Say it the way you would to a person: “two cokes and as much yogurt as fits in ten dollars,” or “what I need for tuna salad.” Timbre asks only if it is unsure.</p>
+      <div><p className="eyebrow">New agentic path</p><h2 id={AGENTIC_VOICE_TITLE_ID} tabIndex={-1}>Shop a full request by voice or text</h2></div>
+      <p className="note">Say or type it the way you would to a person: “two cokes and as much yogurt as fits in ten dollars,” or “what I need for tuna salad.” Timbre asks only if it is unsure.</p>
     </div>
     <p>Timbre fills in your cart and shows you what it did. For a meal, it shows the list first. Nothing is bought until you check out.</p>
     <div className="voice-shopping-actions">
@@ -246,9 +272,18 @@ export default function AgenticVoiceShopping({ onOpenCart }) {
       {(busy || listening || phase === "clarifying" || phase === "reviewing") && <button className="btn btn-secondary" type="button" onClick={() => reset("Canceled. Your cart was not changed.")}>Cancel</button>}
       {listening && <span className="rec-indicator"><span className="rec-dot" aria-hidden="true" />Recording</span>}
     </div>
+    <form className="voice-type" onSubmit={submitTyped}>
+      <label htmlFor="agentic-typed">Or type the whole request</label>
+      <div className="voice-type-row">
+        <input id="agentic-typed" value={typed} onChange={(event) => setTyped(event.target.value)}
+          maxLength={AGENTIC_TEXT_MAX} disabled={busy || listening} autoComplete="off"
+          placeholder="two cokes and as much yogurt as fits in ten dollars" />
+        <button className="btn btn-primary" type="submit" disabled={!typed.trim() || busy || listening}>Shop</button>
+      </div>
+    </form>
     <p className="voice-status" role="status" aria-live="polite">{progress || (phase === "ready" ? "" : message)}</p>
 
-    {rawTranscript && <div className="agentic-block"><h3>Timbre heard</h3><p className="agentic-transcript">“{rawTranscript}”</p></div>}
+    {rawTranscript && <div className="agentic-block"><h3>{typedSource ? "You asked for" : "Timbre heard"}</h3><p className="agentic-transcript">“{rawTranscript}”</p></div>}
     {request && (request.items.length > 0 || request.meals.length > 0) && <div className="agentic-block"><h3>Timbre understood</h3>
       {request.items.map((item, i) => <div key={`item-${i}`} className="stack">
         {several && <p className="agentic-item-head">{item.product.value ?? `Item ${i + 1}`}</p>}

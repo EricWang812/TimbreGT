@@ -24,6 +24,14 @@ alternatives considered and why they were rejected.
 
 ---
 
+### 2026-09-26 14:05 - Agentic shopping by typing
+
+- **Files:** web/src/components/AgenticVoiceShopping.jsx, docs/CHANGELOG.md.
+- **What:** The agentic panel now has an "Or type the whole request" field with a Shop button under the microphone button. A typed request skips transcription and runs the same interpret, clarify, and basket steps as speech (shared `interpret` function), so questions, review, Undo, and cart-race checks behave the same. The transcript block reads "You asked for" when typed and "Timbre heard" when spoken. Heading is now "Shop a full request by voice or text". Input is capped at 1000 characters to match `AGENTIC_TEXT_MAX`, and is disabled while recording or working.
+- **Why:** Lets the full agentic flow run without a microphone (demo backup, and people who prefer typing).
+- **Verify:** `npm --prefix web run build`; in the browser, type "as much yogurt as I can get for ten dollars, and two cokes" and press Shop: 6 Chobani yogurts ($8.94) and 2 Coke six-packs are added with Undo; no console errors.
+- **Risk/Notes:** A 503 on the typed path shows an error rather than the Whisper fallback, since there is no audio to hand over. Existing display quirk, not new: "Timbre understood" can show a brand the speaker never said (Fage here) even though commerce ignores it and picks by price.
+
 ### 2026-09-26 13:50 - Live OpenAI round trip; keep a one-item limit off the basket budget
 
 - **Files:** api/openai_intent.py, docs/CHANGELOG.md.
