@@ -24,6 +24,16 @@ alternatives considered and why they were rejected.
 
 ---
 
+### 2026-09-26 06:20 - README reflects what is built and measured
+
+- **Files:** README.md.
+- **What:** Replaced the "in progress" status with the problem statement, what works, a table of measured claims each tied to its ADR and caveats, run instructions, and full credits (TORGO, EasyCall CC BY-NC 2.0, ECAPA, the candidate encoders not used live, Whisper for store-side shopping only).
+- **Why:** Phase 10; the README is what judges read first, and §2.6 requires every claim to be one we can back.
+- **Verify:** Each number in the table matches ADR 3, 9, the baseline and drift outputs; the novelty framing matches docs/CONTEXT.md §11.
+- **Risk/Notes:** Devpost text is still to be written from this.
+
+---
+
 ### 2026-09-26 06:10 - EasyCall confirmation: fusion rejected, live design holds (ADR 9)
 
 - **Files:** docs/PREREGISTRATION.md (Outcome), docs/DECISIONS.md (ADR 9), docs/RESEARCH.md, AGENTS.md, scripts/run_same_word.py (new, exploratory), .gitignore.
