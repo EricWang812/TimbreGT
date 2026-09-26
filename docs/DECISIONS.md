@@ -33,7 +33,7 @@ Style rule: do not use em dashes.
 |---|---|---|---|
 | Card tokenized at seeding; the issuer holds only a token reference and last four (`PaymentProvider.create_token`, `payment_tokens` table) | Tokenization | The same "no card number leaves the issuer" rule as a network token | Ours is a Stripe PaymentMethod, not a VIC agent-specific token |
 | Voice approval: two of the person's own sounds, personal threshold, replay check (`issuer/approvals.py` `voice`) | Authentication: step-up verification of the cardholder | Timbre is a step-up method the issuer chooses, like a 3-D Secure challenge (ADR 2) | VIC does not publish a hook for issuer-defined step-up methods that we could find |
-| Passkey fallback and step-up at or above $50 (`issuer/webauthn_routes.py`) | Authentication: Passkey set-up and use | Real WebAuthn passkeys, registered at the bank and asserted at checkout | Ours are our own WebAuthn credentials, not Visa Payment Passkeys |
+| Passkey fallback when voice cannot be used (`issuer/webauthn_routes.py`; no amount step-up since ADR 12) | Authentication: Passkey set-up and use | Real WebAuthn passkeys, registered at the bank and asserted at checkout | Ours are our own WebAuthn credentials, not Visa Payment Passkeys |
 | `instruction_id` created when the shopper confirms a cart, bound to the approval and sent with the authorization (`authorize(..., instruction_id)`, Stripe metadata) | Payment Instructions | One confirmed instruction per purchase; the authorization must carry it, so a verification cannot be reused for a different charge | No standing limits or categories; each instruction is a single cart |
 | Outcome reported after settlement (`PaymentProvider.report_outcome`); the merchant learns only `{verified, transaction_id}` | Signals | The instruction plus the outcome is the record VIC uses for disputes | On Stripe the signal is only logged |
 
@@ -148,7 +148,8 @@ Style rule: do not use em dashes.
 ## 5. High-value purchases fall back to the passkey alone
 
 - **Date:** 2026-09-26
-- **Status:** accepted
+- **Status:** accepted; its premise (the $50 step-up) was removed by ADR 12.
+  The fallback it decided still holds for every amount.
 - **Context:** At or above `STEP_UP_AMOUNT` ($50), a voice match still needs
   the passkey (voice AND passkey). The open question was what happens when
   both voice attempts fail on such a purchase: the passkey alone, or
@@ -157,7 +158,8 @@ Style rule: do not use em dashes.
   failed voice attempts, any purchase, including one at or above
   `STEP_UP_AMOUNT`, completes with the passkey alone. The session records
   `method='passkey'`. No §7 parameter changes. Locked by
-  `test_step_up_purchase_falls_back_to_passkey_only_after_two_failures`.
+  `test_large_purchase_falls_back_to_passkey_only_after_two_failures`
+  (renamed from `test_step_up_purchase_...` under ADR 12).
 - **Alternatives rejected:** (a) Block the purchase after two failures:
   violates §2.4 (never dead-end the user). (b) Require a second factor
   beyond the passkey (a one-time code, a call to the bank): adds an
@@ -239,3 +241,14 @@ Style rule: do not use em dashes.
 - **Decision:** Apply a basket of named items directly, with Undo. When any line was chosen by the agent (a meal ingredient, or an item whose words the shopper never said), return the priced list for review first, with Remove and Put back re-priced by the server and one Add to cart. Meal ingredients may only reference catalog ids the server can find; anything else is listed as not sold here. A basket budget is shared in spoken order, "as many as fit" items take what is left, and going over is shown, never silently trimmed.
 - **Alternatives rejected:** (a) Review every basket: adds a step to the common case of named items. (b) Apply meals directly with Undo: the shopper never saw the choices, so an unwanted item could reach checkout unnoticed. (c) Let the model pick products for named items too: the deterministic search stays auditable and testable. (d) Trim the basket automatically to fit a budget: silently drops something the shopper asked for.
 - **Consequences:** Clear lists need no extra step; meals need one. Meal quality depends on the model, bounded by the catalog check, the review list, and the budget check. The merchant/issuer boundary and checkout safeguards are unchanged.
+
+---
+
+## 12. A voice match approves any amount; no passkey step-up
+
+- **Date:** 2026-09-26
+- **Status:** accepted (changes §7.5 item 3; supersedes the premise of ADR 5)
+- **Context:** At or above `STEP_UP_AMOUNT` ($50), a voice match still asked for the passkey. For the people Timbre exists for, that meant doing a second, different verification right after succeeding at the first, on exactly the purchases that matter most. The team decided it defeats the purpose: voice should be the way they pay, not a preamble to the passkey.
+- **Decision:** Remove amount tiering. A voice match (both challenged sounds pass, no replay) approves and pays at any amount. The passkey is asked for only when voice cannot be used: sounds not fully enrolled, a low-confidence sound (§7.2), or `MAX_VOICE_ATTEMPTS` failures (§7.6, ADR 5). `STEP_UP_AMOUNT` is deleted from `issuer/config.py`; the `step_up` field and reason are gone from the widget API; sessions record `method='voice'` or `'passkey'`. Locked by `test_large_purchase_needs_voice_alone` ($500 purchase, voice only, passkey refused before voice).
+- **Alternatives rejected:** (a) Raise the threshold (say $200) instead of removing it: keeps the double step for the purchases people care most about, only rarer. (b) Offer voice OR passkey at the shopper's choice above $50: the same single-factor risk as this decision, with a more confusing screen. (c) Keep the step-up: the reason for this ADR.
+- **Consequences:** Voice is now the only factor for voice-approved purchases, large ones included, so its false-accept rate is the security floor for those (live design on EasyCall: FAR 0.23% dysarthric at the calibrated margin; same-word attacker FAR 0.63%, exploratory; ADR 9). A recording played through a speaker is not caught by the replay check (§7.5 item 2); the randomized two-of-three challenge makes it harder, and nothing more. Real deployments would put a risk limit here from the issuer's own controls (AGENTS.md §3.3, Visa Transaction Controls), which we do not build. The merchant still learns only `{verified, transaction_id}`. `issuer/db.py` keeps `'voice+passkey'` in the `method` CHECK so existing databases stay valid; nothing writes it any more.

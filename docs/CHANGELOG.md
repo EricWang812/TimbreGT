@@ -24,6 +24,14 @@ alternatives considered and why they were rejected.
 
 ---
 
+### 2026-09-26 14:20 - Remove the $50 passkey step-up after a voice match (ADR 12)
+
+- **Files:** issuer/config.py, issuer/approvals.py, issuer/liveness.py, issuer/webauthn_routes.py, web/src/issuer/ApprovalWidget.jsx, web/src/issuer/EnrollPage.jsx, tests/test_challenge.py, docs/ALGORITHM.md, docs/DECISIONS.md, docs/CONTEXT.md, docs/DEVPOST.md, README.md, AGENTS.md, docs/CHANGELOG.md.
+- **What:** A voice match now approves and pays at any amount. Deleted `STEP_UP_AMOUNT`, `_step_up`, the `step_up` passkey reason, the `step_up` field in identify and passkey responses, the pending `method='voice'` state, and the `voice+passkey` method. The passkey is allowed only when voice is not enrolled, a sound is low-confidence, or both voice attempts failed. Widget and enrollment copy no longer mention a $50 tier. `test_step_up_needs_voice_and_passkey` became `test_large_purchase_needs_voice_alone` ($500, voice only, passkey refused before voice); the ADR 5 test was renamed to `test_large_purchase_falls_back_to_passkey_only_after_two_failures` and still passes.
+- **Why:** The team decided a second verification right after a successful voice match defeats the purpose for the people Timbre is for. This changes §7.5 item 3, so ADR 12 records it with alternatives.
+- **Verify:** `make test` (340 passed); `npm --prefix web run build`. Restart the issuer (`make issuer`; it runs without reload), then check out a cart over $50 and approve by voice: the widget goes straight to the receipt.
+- **Risk/Notes:** Voice is now the only factor on voice-approved purchases, including large ones; ADR 12 states the FAR and the speaker-replay gap honestly. `issuer/db.py` still allows `'voice+passkey'` in the method CHECK so existing databases stay valid.
+
 ### 2026-09-26 14:05 - Agentic shopping by typing
 
 - **Files:** web/src/components/AgenticVoiceShopping.jsx, docs/CHANGELOG.md.

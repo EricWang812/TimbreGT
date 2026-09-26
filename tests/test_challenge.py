@@ -17,7 +17,9 @@ from fastapi.testclient import TestClient
 
 from issuer import approvals
 from issuer import db as issuer_db
-from issuer.config import CHALLENGE_LENGTH, MAX_DRIFT, MAX_VOICE_ATTEMPTS, SAMPLE_RATE, STEP_UP_AMOUNT
+from issuer.config import CHALLENGE_LENGTH, MAX_DRIFT, MAX_VOICE_ATTEMPTS, SAMPLE_RATE
+
+LARGE_PURCHASE_CENTS = 50_000   # $500: voice alone still approves it (ADR 12)
 from issuer.liveness import is_replay, max_normalized_xcorr, pick_challenge
 from issuer.main import app as issuer_app
 from tests.softauthn import pay_with_passkey, register
@@ -169,11 +171,11 @@ def test_two_failures_fall_back_to_passkey(issuer, monkeypatch):
     assert issuer_db.fetch_one("SELECT method FROM sessions WHERE id = ?", (sid,))["method"] == "passkey"
 
 
-def test_step_up_purchase_falls_back_to_passkey_only_after_two_failures(issuer, monkeypatch):
-    # ADR 5: at or above STEP_UP_AMOUNT, two failed voice attempts end in the
+def test_large_purchase_falls_back_to_passkey_only_after_two_failures(issuer, monkeypatch):
+    # ADR 5: a large purchase, after two failed voice attempts, ends in the
     # passkey alone, the same as any other purchase (never a dead end, §2.4).
     monkeypatch.setattr(approvals.v, "score", lambda embedding, center: 0.0)
-    sid = _session(issuer, amount_cents=STEP_UP_AMOUNT)
+    sid = _session(issuer, amount_cents=LARGE_PURCHASE_CENTS)
     first = _answer(issuer, sid, _identify(issuer, sid)["challenge"]).json()
     second = _answer(issuer, sid, first["challenge"]).json()
     assert second["result"] == "passkey_required" and second["reason"] == "attempts"
@@ -199,15 +201,16 @@ def test_too_short_take_is_a_retake_not_a_failed_attempt(issuer):
     assert _identify(issuer, sid)["attempts_left"] == MAX_VOICE_ATTEMPTS
 
 
-def test_step_up_needs_voice_and_passkey(issuer):
-    sid = _session(issuer, amount_cents=STEP_UP_AMOUNT)
+def test_large_purchase_needs_voice_alone(issuer):
+    # ADR 12: a voice match approves any amount; no passkey after it.
+    sid = _session(issuer, amount_cents=LARGE_PURCHASE_CENTS)
     ident = _identify(issuer, sid)
-    assert ident["step_up"] is True and ident["mode"] == "voice"
+    assert ident["mode"] == "voice" and "step_up" not in ident
+    assert issuer.post(f"/v1/sessions/{sid}/passkey/options").status_code == 409   # voice first
     res = _answer(issuer, sid, ident["challenge"]).json()
-    assert res["result"] == "passkey_required" and res["reason"] == "step_up"
-    assert _approve(issuer, sid)["verified"] is False                     # voice alone is not enough
-    assert pay_with_passkey(issuer, sid, DEVICE["passkey"]).json() == {"result": "verified"}
-    assert issuer_db.fetch_one("SELECT method FROM sessions WHERE id = ?", (sid,))["method"] == "voice+passkey"
+    assert res["result"] == "verified", res
+    assert _approve(issuer, sid)["verified"] is True
+    assert issuer_db.fetch_one("SELECT method FROM sessions WHERE id = ?", (sid,))["method"] == "voice"
 
 
 def test_low_confidence_sound_means_passkey(issuer):

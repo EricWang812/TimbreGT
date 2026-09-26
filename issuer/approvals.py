@@ -40,7 +40,6 @@ from issuer.config import (
     SESSION_ID_BYTES,
     SESSION_MAX_EXTENSIONS,
     SESSION_TTL_SECONDS,
-    STEP_UP_AMOUNT,
 )
 from issuer.db import fetch_all, fetch_one, transaction
 from issuer.enrollment import MAX_UPLOAD_BYTES
@@ -195,11 +194,10 @@ def extend_session(session_id: str) -> dict:
 #           of their sounds in random order, or the passkey when voice is not
 #           available (not fully enrolled, a low-confidence sound per §7.2, or
 #           MAX_VOICE_ATTEMPTS already used).
-# voice     scores both takes; both must pass. At or above STEP_UP_AMOUNT a
-#           voice pass still needs the passkey (recorded as method='voice'
-#           while the session stays pending).
+# voice     scores both takes; both must pass, and a pass pays at any amount
+#           (ADR 12: no passkey step-up after a voice match).
 # passkey   a real WebAuthn assertion (issuer/webauthn_routes.py), allowed only
-#           where the flow asks for one.
+#           where voice cannot be used.
 #
 # Scores and thresholds go to the bank's widget only. The merchant still
 # learns nothing beyond {verified, transaction_id} (§2.5).
@@ -207,7 +205,6 @@ def extend_session(session_id: str) -> dict:
 PASSKEY_REASONS = {
     "not_enrolled": "Voice approval is not fully set up for this card, so your bank will use your passkey.",
     "attempts": "Your voice did not match after two tries. Use your passkey to finish.",
-    "step_up": "Voice matched. Purchases of this size also need your passkey.",
 }
 
 
@@ -222,13 +219,9 @@ def _voice_ready(user_id: str) -> bool:
     return len(_usable_labels(user_id)) >= LABELS_PER_USER
 
 
-def _step_up(session: sqlite3.Row) -> bool:
-    return session["amount_cents"] >= STEP_UP_AMOUNT
-
-
-def _passkey_state(session: sqlite3.Row, reason: str) -> dict:
+def _passkey_state(reason: str) -> dict:
     return {"mode": "passkey", "reason": reason, "message": PASSKEY_REASONS[reason],
-            "challenge": None, "attempts_left": 0, "step_up": _step_up(session)}
+            "challenge": None, "attempts_left": 0}
 
 
 @router.post("/v1/sessions/{session_id}/identify")
@@ -258,14 +251,12 @@ def identify(session_id: str, body: IdentifyRequest) -> dict:
             challenge = pick_challenge(_usable_labels(body.user_id))
         conn.execute("UPDATE sessions SET user_id = ?, attempts = ?, labels_json = ? WHERE id = ?",
                      (body.user_id, attempts, json.dumps(challenge) if challenge else None, session_id))
-    if same_card and session["method"] == "voice":
-        return _passkey_state(session, "step_up")
     if not voice_ready:
-        return _passkey_state(session, "not_enrolled")
+        return _passkey_state("not_enrolled")
     if challenge is None:
-        return _passkey_state(session, "attempts")
+        return _passkey_state("attempts")
     return {"mode": "voice", "challenge": challenge, "attempts_left": MAX_VOICE_ATTEMPTS - attempts,
-            "step_up": _step_up(session), "reason": None, "message": None}
+            "reason": None, "message": None}
 
 
 @router.post("/v1/sessions/{session_id}/voice")
@@ -275,8 +266,6 @@ def voice(session_id: str, request: Request, audio: list[UploadFile] = File(...)
     _require_pending(session)
     if session["user_id"] is None or session["labels_json"] is None:
         raise HTTPException(409, "choose your card first")
-    if session["method"] == "voice":
-        raise HTTPException(409, "voice already matched; finish with your passkey")
     if session["attempts"] >= MAX_VOICE_ATTEMPTS:
         raise HTTPException(409, "no voice attempts left; use your passkey")
     challenge = json.loads(session["labels_json"])
@@ -364,30 +353,26 @@ def voice(session_id: str, request: Request, audio: list[UploadFile] = File(...)
         else:
             # A match does not use up the budget: refund this attempt.
             attempts = claimed - 1
-            method_sql = ", method = 'voice'" if _step_up(session) else ""
-            conn.execute(f"UPDATE sessions SET attempts = attempts - 1{method_sql} WHERE id = ?", (session_id,))
+            conn.execute("UPDATE sessions SET attempts = attempts - 1 WHERE id = ?", (session_id,))
 
     base = {"takes": takes, "latency_ms": latency_ms}
     if not matched:
         log.info("voice attempt failed: session=%s attempt=%d", session_id, attempts)
         if next_challenge is None:
-            return {**base, **_passkey_state(session, "attempts"), "result": "passkey_required"}
+            return {**base, **_passkey_state("attempts"), "result": "passkey_required"}
         return {**base, "result": "retry", "challenge": next_challenge,
                 "attempts_left": MAX_VOICE_ATTEMPTS - attempts}
-    if _step_up(session):
-        return {**base, **_passkey_state(session, "step_up"), "result": "passkey_required"}
     return {**base, "result": _complete_payment(request, session_id, "voice")}
 
 
 def _passkey_session(session_id: str) -> sqlite3.Row:
     """The session, if the flow is at a point where a passkey is asked for:
-    no usable voice, voice attempts used up, or a step-up after a voice pass."""
+    no usable voice, or voice attempts used up."""
     session = fetch_one("SELECT * FROM sessions WHERE id = ?", (session_id,))
     _require_pending(session)
     if session["user_id"] is None:
         raise HTTPException(409, "choose your card first")
-    allowed = (session["method"] == "voice" or session["attempts"] >= MAX_VOICE_ATTEMPTS
-               or not _voice_ready(session["user_id"]))
+    allowed = session["attempts"] >= MAX_VOICE_ATTEMPTS or not _voice_ready(session["user_id"])
     if not allowed:
         raise HTTPException(409, "use your voice first")
     return session
@@ -408,8 +393,7 @@ def passkey_options(session_id: str) -> dict:
 def passkey(session_id: str, body: CredentialBody, request: Request) -> dict:
     session = _passkey_session(session_id)
     verify_assertion(session["user_id"], f"session:{session_id}", body.credential)
-    method = "voice+passkey" if session["method"] == "voice" else "passkey"
-    return {"result": _complete_payment(request, session_id, method)}
+    return {"result": _complete_payment(request, session_id, "passkey")}
 
 
 def _complete_payment(request: Request, session_id: str, method: str) -> str:

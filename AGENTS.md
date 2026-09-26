@@ -462,7 +462,7 @@
 3a. Accuracy: cheap candidates rejected (ADR 7); encoders not adopted (ADR 8); fusion failed a pre-registered test on EasyCall (ADR 9), while the live design held (dysarthric EER 2.43%, 2.84% vs same-word attackers). Quote only with ADR 9's caveats.
 4. Phase 10: demo hardening, `docs/DEMO.md`, VIC mapping in ADR 1, README/Devpost (check `docs/CONTEXT.md` §11 before claiming anything).
 
-**Open decisions for the person:** (a) decided 2026-09-26: purchases >= $50 fall back to passkey-only after 2 failed voice attempts (ADR 5); (b) roll the Stripe test key after the event (it was shared in chat).
+**Open decisions for the person:** (a) decided 2026-09-26: after 2 failed voice attempts any purchase completes with the passkey alone (ADR 5), and a voice match approves any amount with no passkey step-up (ADR 12, removed the $50 tier); (b) roll the Stripe test key after the event (it was shared in chat).
 
 **Verified by a human (2026-09-26):** a real fingerprint passkey registration and a full UI purchase through Stripe (passkey-only, merchant saw only `{verified, transaction_id}`). Caveat: in Edge, a passkey saved to Microsoft Password Manager failed to sign when Windows routed it through its passkey-provider path (fingerprint passed, then "There was a problem signing in with your passkey"); re-registering fixed it. On the demo machine, rehearse the passkey step once, and if it fails check `Get-WinEvent -LogName Microsoft-Windows-WebAuthN/Operational` for `PluginGetAssertionRequest`.
 

@@ -37,6 +37,6 @@ def is_replay(take: np.ndarray, stored: list[np.ndarray]) -> bool:
     """True if the take is a near-duplicate of any stored sample.
 
     This catches the same file replayed. It does not catch a recording played
-    through a speaker into a microphone; the randomized challenge and the
-    amount-tiered passkey step-up cover that (docs/CONTEXT.md §16)."""
+    through a speaker into a microphone; the randomized challenge makes that
+    harder but does not stop it (docs/CONTEXT.md §16, ADR 12)."""
     return any(max_normalized_xcorr(take, s) >= REPLAY_CORR for s in stored)

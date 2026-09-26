@@ -38,7 +38,6 @@ MAX_DRIFT = 0.05
 # --- Liveness and anti-replay (§7.5) ---
 CHALLENGE_LENGTH = 2             # labels required per approval, in order
 REPLAY_CORR = 0.98
-STEP_UP_AMOUNT = 5000            # cents; at or above this, voice AND passkey
 
 # --- Fallback (§7.6) ---
 MAX_VOICE_ATTEMPTS = 2

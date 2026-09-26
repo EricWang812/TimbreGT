@@ -29,7 +29,8 @@ no one hits a dead end.
   with held-out personal thresholds (ADR 3).
 - Approval by two of those sounds in random order, replay rejection, template
   adaptation on confident passes (`docs/ALGORITHM.md` §7.4), and a real
-  WebAuthn passkey after two failed tries or above $50.
+  WebAuthn passkey only after two failed tries (a voice match approves any
+  amount, ADR 12).
 - Stripe test-mode payments behind a provider interface; the Visa Intelligent
   Commerce mapping is ADR 1 (no VIC access, stated plainly).
 - Voice shopping on the store side (Whisper n-best, LLM rerank with a

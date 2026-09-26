@@ -216,9 +216,7 @@ export default function ApprovalWidget({ sessionId, onClose }) {
       }
       setChallenge(res.challenge);
       setTakes([]);
-      setStatus(res.step_up
-        ? "This is a larger purchase: after your voice, your bank will also ask for your passkey."
-        : "");
+      setStatus("");
       setPhase("voice");
     } catch (err) {
       console.error("identify failed", err);

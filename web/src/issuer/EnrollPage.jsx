@@ -21,8 +21,6 @@ const DEMO_SIGN_IN = [
   { id: "jordan", name: "Jordan Lee" },
 ];
 
-// Mirrors issuer/config.py STEP_UP_AMOUNT (cents); shown in the passkey explanation.
-const STEP_UP_DOLLARS = 5000 / 100;
 
 const STATUS_TEXT = {
   collecting: "In progress",
@@ -318,8 +316,8 @@ function Enroll({ userId }) {
         <section className="bank-card stack" aria-labelledby="passkey-heading">
           <h2 id="passkey-heading">Passkey backup</h2>
           <p>
-            If your voice is not recognized, and for purchases of ${STEP_UP_DOLLARS} or more, your bank also asks
-            for a passkey: Windows Hello, your phone, or a security key.
+            If your voice is not recognized, your bank asks for a passkey instead: Windows Hello, your phone,
+            or a security key.
           </p>
           <p className="bank-muted">
             {passkeys === null ? "Checking…" : passkeys > 0

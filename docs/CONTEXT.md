@@ -93,8 +93,11 @@ failure at the table.
 ### Answers to have ready
 
 - *Replay attack?* See §7.5, all three defenses.
-- *Entropy of a hum versus a passphrase?* Lower. One factor among several, with
-  passkey step-up above the amount tier. Do not oversell it.
+- *Entropy of a hum versus a passphrase?* Lower. Voice is the only factor on a
+  voice-approved purchase (ADR 12 removed the $50 passkey step-up); the defense
+  is two random sounds, a personal threshold, and replay rejection, with the
+  measured FAR in ADR 9. A real issuer would add its own amount limits. Do not
+  oversell it.
 - *Your FAR and FRR at that threshold?* Cite the actual operating point from
   `docs/eval_results.md`, not "it works."
 - *Is not text-independent verification already articulation-agnostic?* Yes in

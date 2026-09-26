@@ -1,4 +1,4 @@
-"""Passkeys (WebAuthn): the §7.6 fallback and the step-up second factor.
+"""Passkeys (WebAuthn): the §7.6 fallback when voice cannot be used.
 
     GET  /v1/passkeys/{user_id}                    how many passkeys the cardholder has
     POST /v1/passkeys/{user_id}/register/options   creation options for the browser

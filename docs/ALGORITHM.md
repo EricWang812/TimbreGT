@@ -91,8 +91,10 @@ All three are required. A judge will ask about replay.
 2. **Near-duplicate rejection.** Normalized cross-correlation above
    `REPLAY_CORR = 0.98` against any stored sample means the same file was
    replayed. Reject and count it as a failed attempt.
-3. **Amount tiering.** Below `STEP_UP_AMOUNT` (5000 cents), voice alone. At or
-   above it, voice **and** passkey.
+3. **No amount tiering (ADR 12).** A voice match approves a purchase of any
+   amount. The passkey is asked for only when voice cannot be used (§7.6).
+   Removed 2026-09-26: `STEP_UP_AMOUNT` (5000 cents) used to require voice
+   **and** passkey at or above $50.
 
 ### 7.6 Fallback
 

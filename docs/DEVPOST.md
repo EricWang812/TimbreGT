@@ -29,7 +29,8 @@ integrates in two server-to-server calls.
   compares them with a speaker embedding, and rejects replayed recordings.
   Nothing in the bank's verification path transcribes audio.
 - **No dead ends:** after two failed tries, a real WebAuthn passkey completes
-  the purchase. At $50 and above, the passkey is required as a step-up.
+  the purchase. A voice match approves any amount on its own; the passkey is
+  never asked for after voice succeeds.
 - **Privacy split:** the store receives only `{verified, transaction_id}`,
   enforced by a test.
 - **Adaptation:** confident passes nudge the template, with a clamp on how far
