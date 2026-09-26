@@ -24,6 +24,14 @@ alternatives considered and why they were rejected.
 
 ---
 
+### 2026-09-26 15:00 - Demo script for the verified flow; hide never-said fields in "Timbre understood"
+
+- **Files:** docs/DEMO.md, AGENTS.md, api/ambiguity_resolution.py, tests/test_ambiguity_resolution.py, web/src/components/AgenticVoiceShopping.jsx, docs/CHANGELOG.md.
+- **What:** Tagged the human-verified version as `working-demo-2026-09-26` (5531435) and recorded the run in AGENTS.md (owner accepted, a second person rejected; one live trial, not a rate). DEMO.md now follows that run: agentic request (spoken, typed as backup), a checkout of $50 or more approved by voice alone, an optional second-person rejection, and an OpenAI key check. `ClarificationState` gains `ignoredFields`, the fields the server already set aside as never said (an inferred store brand, a catalog pack size); the panel skips them and shows "Timbre understood" only once that list has arrived, so "Brand: Fage" and "Size: 5.3 oz" no longer appear for "as much yogurt as I can get for ten dollars".
+- **Why:** The display listed a brand the shopper never said even though commerce ignored it, which looked like a mistake on screen.
+- **Verify:** `make test` (340 passed, with a new `ignoredFields` assertion); `npm --prefix web run build`; in the browser the yogurt request shows only item, quantity, and price limit for the yogurt, while the model still returns brand Fage.
+- **Risk/Notes:** A basket-budget swap (re-pick cheaper named items when over a total budget) was written and then reverted: the live catalog has one milk and one eggs, and the default ranking already picks the cheapest bread, so it would rarely change anything. The earlier claim that cheaper milk exists was wrong.
+
 ### 2026-09-26 14:20 - Remove the $50 passkey step-up after a voice match (ADR 12)
 
 - **Files:** issuer/config.py, issuer/approvals.py, issuer/liveness.py, issuer/webauthn_routes.py, web/src/issuer/ApprovalWidget.jsx, web/src/issuer/EnrollPage.jsx, tests/test_challenge.py, docs/ALGORITHM.md, docs/DECISIONS.md, docs/CONTEXT.md, docs/DEVPOST.md, README.md, AGENTS.md, docs/CHANGELOG.md.

@@ -30,9 +30,11 @@ function cartKey(lines) {
 
 const toLines = (items) => items.map((line) => ({ productId: line.product_id, quantity: line.quantity }));
 
-// Only what the shopper actually said: unstated fields are not listed.
-function spokenFields(intent) {
+// Only what the shopper actually said: unstated fields are not listed, nor are
+// ones the server set aside as never said (an inferred brand or pack size).
+function spokenFields(intent, ignored = []) {
   const fields = Object.keys(LABELS).flatMap((field) => {
+    if (ignored.includes(field)) return [];
     const entry = intent[field];
     if (field === "quantity" && entry?.mode === "fill_budget") return [[field, "As many as fit your limit"]];
     const value = Array.isArray(entry) ? (entry.length ? entry.join(", ") : null) : entry?.value;
@@ -284,10 +286,10 @@ export default function AgenticVoiceShopping({ onOpenCart }) {
     <p className="voice-status" role="status" aria-live="polite">{progress || (phase === "ready" ? "" : message)}</p>
 
     {rawTranscript && <div className="agentic-block"><h3>{typedSource ? "You asked for" : "Timbre heard"}</h3><p className="agentic-transcript">“{rawTranscript}”</p></div>}
-    {request && (request.items.length > 0 || request.meals.length > 0) && <div className="agentic-block"><h3>Timbre understood</h3>
+    {request && resolution && (request.items.length > 0 || request.meals.length > 0) && <div className="agentic-block"><h3>Timbre understood</h3>
       {request.items.map((item, i) => <div key={`item-${i}`} className="stack">
         {several && <p className="agentic-item-head">{item.product.value ?? `Item ${i + 1}`}</p>}
-        <dl className="agentic-intent">{spokenFields(item).map(([field, value]) => <div key={field}><dt>{LABELS[field]}</dt><dd>{value}</dd></div>)}</dl>
+        <dl className="agentic-intent">{spokenFields(item, resolution.items?.[i]?.ignoredFields).map(([field, value]) => <div key={field}><dt>{LABELS[field]}</dt><dd>{value}</dd></div>)}</dl>
       </div>)}
       {request.meals.map((meal, i) => <p key={`meal-${i}`}><strong>Meal:</strong> {meal.goal}{meal.servings ? `, for ${meal.servings}` : ""}</p>)}
       {request.totalBudget?.value != null && <p><strong>Budget for everything:</strong> ${request.totalBudget.value}</p>}

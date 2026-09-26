@@ -180,6 +180,7 @@ def test_a_store_brand_the_speaker_never_said_is_neither_asked_nor_used():
     state = build_clarification_state("two yogurts", ShoppingIntent.model_validate(payload))
     assert state.pendingClarifications == []
     assert "brand" not in state.acceptedValues
+    assert "brand" in state.ignoredFields   # the panel does not show it as understood
 
     payload["brand"] = {"value": "Chobani", "confidence": "high", "sourceText": "chobani"}
     payload["ambiguities"] = []

@@ -112,6 +112,9 @@ class ClarificationState(BaseModel):
     acceptedValues: dict[str, ResolvedValue] = Field(default_factory=dict)
     assumptions: list[str] = Field(default_factory=list)
     setAside: list[SetAside] = Field(default_factory=list)
+    # Extracted fields the speaker never said (an inferred store brand, a pack
+    # size filled in from the catalog): not used, and not shown as understood.
+    ignoredFields: list[str] = Field(default_factory=list)
     pendingClarifications: list[Clarification] = Field(default_factory=list)
     complete: bool = False
 
@@ -483,6 +486,7 @@ def build_clarification_state(
         acceptedValues=accepted,
         assumptions=assumptions,
         setAside=set_aside,
+        ignoredFields=sorted(plan.ignored),
         pendingClarifications=pending,
         complete=not pending,
     )
