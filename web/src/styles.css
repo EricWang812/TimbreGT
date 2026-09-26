@@ -8,16 +8,20 @@
 
 :root {
   /* Store surface */
-  --bg: #ecfdf5;
+  --bg: #faf8f4;              /* warm sand */
   --surface: #ffffff;
-  --text: #0f172a;            /* 16.95:1 on --bg */
-  --ink: #064e3b;             /* 9.23:1 on --bg, 9.72:1 on white: headings, prices */
-  --text-muted: #475569;      /* 7.19:1 on --bg, 7.58:1 on white */
-  --primary: #047857;         /* white text on it: 5.48:1 */
+  --text: #0f172a;            /* 16.83:1 on --bg */
+  --ink: #064e3b;             /* 9.16:1 on --bg, 9.72:1 on white: headings, prices */
+  --text-muted: #475569;      /* 7.14:1 on --bg, 7.58:1 on white */
+  --primary: #047857;         /* white text on it: 5.48:1; as text 5.17:1 on --bg */
   --primary-hover: #065f46;   /* white text on it: 7.68:1 */
-  --control-border: #5f7a70;  /* 4.66:1 on white, 4.43:1 on --bg */
-  --divider: #d1e7dd;         /* decorative only, never a control boundary */
-  --focus: #0b2545;           /* 14.61:1 on --bg, 15.39:1 on white */
+  --control-border: #5f7a70;  /* 4.66:1 on white, 4.40:1 on --bg (non-text needs 3:1) */
+  --divider: #e7e2d8;         /* decorative only, never a control boundary */
+  --skeleton: #ece8df;        /* image wells and loading placeholders, decorative */
+  --tint: #e6f4ee;            /* chips, badges, steppers: --ink 8.58:1, #065f46 6.78:1 */
+  --band: #0e4f47;            /* kelp teal hero band: white 9.43:1 */
+  --band-muted: #d7f0e6;      /* on --band: 7.85:1 */
+  --focus: #0b2545;           /* 14.51:1 on --bg, 15.39:1 on white; white ring inside --band */
   --error: #b91c1c;           /* 6.47:1 on white */
   --ok: #047857;              /* 5.48:1 on white */
 
@@ -43,7 +47,18 @@
   --space-6: 1.5rem;
   --space-8: 2rem;
   --shadow: 0 1px 2px rgb(15 23 42 / 0.08), 0 4px 12px rgb(15 23 42 / 0.06);
+  --shadow-1: 0 1px 2px rgb(15 23 42 / 0.06);
+  --shadow-2: 0 4px 8px -2px rgb(15 23 42 / 0.10), 0 12px 24px -6px rgb(15 23 42 / 0.12);
+  --shadow-drawer: -16px 0 40px rgb(15 23 42 / 0.18);
+  --radius-card: 16px;
+  --radius-pill: 999px;
   --ease: 180ms ease-out;
+  /* Motion (brief §3): enter with ease-out, exit with ease-in, exits shorter. */
+  --dur-fast: 150ms;
+  --dur-base: 200ms;
+  --dur-slow: 280ms;
+  --ease-out: cubic-bezier(.2, 0, 0, 1);
+  --ease-in: cubic-bezier(.4, 0, 1, 1);
 
   font-family: var(--font-body);
   font-size: 1.125rem;        /* 18px base: larger than default for low-vision users */
@@ -403,8 +418,15 @@ pre.mono {
   .brand { font-size: 1.125rem; }
 }
 
+/* WCAG 2.3.3: under reduced motion nothing moves or scales. Color and opacity
+   changes are not motion, so fades stay. Never tie state to animationend or
+   transitionend: they do not fire when animation is off. */
 @media (prefers-reduced-motion: reduce) {
-  *, *::before, *::after { animation: none !important; transition: none !important; }
+  *, *::before, *::after {
+    animation: none !important;
+    transition-property: opacity, color, background-color, border-color, box-shadow, display, overlay !important;
+    scroll-behavior: auto !important;
+  }
 }
 
 /* Merchant voice shopping keeps repair choices reachable by keyboard/touch. */

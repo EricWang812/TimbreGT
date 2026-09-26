@@ -24,6 +24,16 @@ alternatives considered and why they were rejected.
 
 ---
 
+### 2026-09-26 07:30 - Storefront redesign foundation (tokens, motion rules, research)
+
+- **Files:** web/src/styles.css (tokens, reduced-motion rule), web/src/styles/checkout.css (new, empty), web/src/main.jsx, web/src/components/Icons.jsx (Mic, Trash), api/checkout.py (`/cart/quote` returns `free_shipping_min_cents`), design-system/seaside-market/MASTER.md (overrides 1 and 7 revised).
+- **What:** Groundwork for the storefront redesign from a researched brief (Whole Foods, Weee, Misfits Market, Instacart design tokens, Baymard, NN/g, WCAG 2.3.3): warm sand background, kelp-teal hero band, tint, skeleton, three shadow levels, radius and motion tokens, all with computed contrast ratios. The reduced-motion rule now stops all movement but keeps fades, which WCAG 2.3.3 does not count as motion. The quote endpoint exposes the free-delivery threshold so the drawer meter has one source of truth.
+- **Why:** User asked to elevate the storefront UI with animations; the shared pieces are laid first so two builders can work in parallel without editing the same files.
+- **Verify:** `make test` (131 passed); `npm --prefix web run build`.
+- **Risk/Notes:** Design overrides 1 ("no hero") and 7 ("only 180ms color transitions") are revised on purpose. The bank widget's tokens are untouched.
+
+---
+
 ### 2026-09-26 07:00 - Demo hardening: rehearsal, executable demo script, Devpost draft
 
 - **Files:** docs/DEVPOST.md (new, drafted by a helper agent and reviewed), docs/DEMO.md, docs/CONTEXT.md (§16 steps 2 and 5).

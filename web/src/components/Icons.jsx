@@ -44,6 +44,23 @@ export const MinusIcon = (p) => (
   </Icon>
 );
 
+export const MicIcon = (p) => (
+  <Icon {...p}>
+    <rect x="9" y="3" width="6" height="11" rx="3" />
+    <path d="M5 11a7 7 0 0 0 14 0" />
+    <path d="M12 18v3" />
+  </Icon>
+);
+
+export const TrashIcon = (p) => (
+  <Icon {...p}>
+    <path d="M4 7h16" />
+    <path d="M10 11v6M14 11v6" />
+    <path d="M6 7l1 13h10l1-13" />
+    <path d="M9 7V4h6v3" />
+  </Icon>
+);
+
 export const CheckIcon = (p) => (
   <Icon {...p}>
     <path d="M20 6 9 17l-5-5" />

@@ -1,0 +1,3 @@
+/* Cart drawer, checkout, and receipt (storefront brief §2 and §3).
+   Tokens live in ../styles.css :root. Every transform or translate goes inside
+   @media (prefers-reduced-motion: no-preference). */
