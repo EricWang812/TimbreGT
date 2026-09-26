@@ -450,6 +450,7 @@ main.route-enter h1 { font-size: 2.25rem; font-weight: 700; letter-spacing: -0.0
   border-radius: var(--radius-pill);
   font: 700 1rem/1.2 var(--font-body);
   text-decoration: none;
+  cursor: pointer;
   transition: background-color var(--dur-fast) var(--ease-out), border-color var(--dur-fast) var(--ease-out);
 }
 .chip:hover { background: var(--tint); border-color: var(--ink); }   /* --ink on --tint 8.58:1 */
@@ -466,22 +467,10 @@ main.route-enter h1 { font-size: 2.25rem; font-weight: 700; letter-spacing: -0.0
   font-variant-numeric: tabular-nums;
 }
 .chip:hover .chip-count { background: var(--surface); }
-/* Sticky below the header only where there is room for both bars. The larger
-   scroll padding keeps focused items clear of both (WCAG 2.4.11). */
-@media (min-width: 900px) and (min-height: 720px) {
-  html:has(.aisle-nav) { scroll-padding-top: 8.5rem; }
-  .aisle-nav {
-    position: sticky;
-    top: var(--header-h);
-    z-index: 4;
-    padding-block: var(--space-2);
-    background: var(--bg);
-    /* Full-bleed bar with a 1px divider at its foot (same ink-overflow trick as the band). */
-    border-image-source: linear-gradient(to top, var(--divider) 1px, var(--bg) 1px);
-    border-image-slice: 0 fill;
-    border-image-outset: 0 100vw;
-  }
-}
+/* Not sticky: with ten aisles the chips wrap to two or three rows, and a bar
+   that tall under the header would hide focused headings (WCAG 2.4.11). The
+   header stays sticky; chips sit at the top of the catalog. */
+.aisle-nav { padding-block: var(--space-2); }
 
 /* --- Catalog ---------------------------------------------------------------- */
 

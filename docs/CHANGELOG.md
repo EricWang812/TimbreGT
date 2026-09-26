@@ -88,6 +88,19 @@ alternatives considered and why they were rejected.
 - **Verify:** `.venv/bin/python -m pip install -r requirements.txt`; `.venv/bin/python -m pip check`; `.venv/bin/python -m pytest -q tests/test_agentic_transcription.py tests/test_agentic_intent.py tests/test_ambiguity_resolution.py tests/test_final_intent.py tests/test_commerce_agent.py` (27 passed); `make test` outside the restricted process sandbox (159 passed); `npm --prefix web run build`.
 - **Risk/Notes:** The current agentic UI is not built, so no component applies the returned lines to CartProvider yet. The endpoint prepares and prices the full replacement payload but does not persist browser state. It cannot call checkout, the issuer, authentication, or payment. Catalog metadata has no color field, so color-constrained requests return no match. No new dependency was added. The existing Whisper shopping UI and purchase flow were not changed.
 
+### 2026-09-26 11:00 - Catalog grows to 56 products with clean, uniform photos
+
+- **Files:** scripts/seed_catalog.json, web/public/products/ (39 added, 7 deleted, the rest re-normalized), scripts/seed_demo.py, web/src/pages/Shop.jsx (`SECTIONS`), web/src/styles.css. Catalog work by a helper agent; reviewed on a contact sheet.
+- **What:**
+  - **Catalog:** 56 real US grocery products (up from 18) across ten aisles. The six products with no clean photo were dropped (Dole bananas, GoGo SqueeZ, Café Bustelo, Chobani nonfat 32 oz, Terra Delyssa, S.Pellegrino), and eight existing photos were replaced with cleaner Open Food Facts images.
+  - **Photos:** every photo is an Open Food Facts image (CC BY-SA 3.0), viewed before acceptance and normalized to a 600x600 white-padded progressive JPEG under 70 KB (2.7 MB total).
+  - **Seeding:** `seed_demo` now deletes products the JSON no longer lists, so re-seeding never leaves a removed item with a missing photo and does not need `make reset` (which would wipe enrollments).
+  - **Product names:** two names were adjusted to what shoppers say ("Butter, Unsalted", "Penne Pasta") so the keyword fallback suggests them for "butter" and "pasta".
+  - **Aisle chips:** no longer sticky. Ten chips wrap to two or three rows, and a 115 to 168px bar under the header would have hidden focused headings (WCAG 2.4.11).
+- **Why:** The user asked for more food items and better images. AGENTS.md §1.1 said "about 20"; this expands it at the user's request.
+- **Verify:** `python -m scripts.seed_demo` prints "catalog: 56 products" and the running catalog has no missing photos; `make test` (132 passed); `npm --prefix web run build`. At 1440px there is no horizontal scroll and chip jumps land headings at 130px, below the 64px header. Voice probes (typed): milk, eggs, coffee, chips, orange juice, strawberries, bacon are confident; butter, pasta, bread, ice cream ask a yes/no question.
+- **Risk/Notes:** Prices are hand-set estimates. A few sizes were read off the package. Weaker photos: the Kirkland shrimp and Folgers crops, Dave's 21 Grains (tight crop), and a faint grey behind Sriracha and the prosciutto. There are no bananas, since Open Food Facts had no clean shot.
+
 ### 2026-09-26 11:00 - Verify all supplied constraints with three mandatory fields
 
 - **Files:** api/ambiguity_resolution.py, api/final_intent.py, api/openai_intent.py, tests/test_ambiguity_resolution.py, tests/test_final_intent.py, AGENTS.md.
@@ -120,6 +133,26 @@ alternatives considered and why they were rejected.
 - **Verify:** `.venv/bin/python -m pip install -r requirements.txt`; `.venv/bin/python -m pip check`; `.venv/bin/python -m pytest -q tests/test_agentic_transcription.py tests/test_agentic_intent.py`; `make test`.
 - **Risk/Notes:** No application behavior changed. Standard-library imports need no package entry, and all other third-party imports used by Features 1 and 2 were already pinned directly.
 
+### 2026-09-26 10:10 - Full demo run: fixes for the details (a11y review, titles, favicon, cart races)
+
+- **Files:** web/index.html, web/public/favicon.svg (new), web/src/App.jsx, web/src/lib/{cart.jsx,api.js}, web/src/components/{VoiceShopping,ProductCard,CartDrawer,SiteHeader}.jsx, web/src/components/CheckoutSteps.jsx (new), web/src/pages/{Shop,Checkout,Receipt}.jsx, web/src/styles.css, web/src/styles/checkout.css, api/catalog.py (`GET /store`), tests/test_shopping.py. Most of these landed in the teammate commit "2:55 am" (2cd529c) without an entry; this entry covers them and the remaining Shop.jsx changes.
+- **What:** From a scripted end-to-end run in the browser plus an independent accessibility review:
+  - The store had no favicon (404) and one page title everywhere. It now has an SVG favicon, a theme color, a description, and a title per route (WCAG 2.4.2).
+  - Cart updates were computed from the rendered state, so taps faster than a re-render were lost. They are now functional (`adjust`).
+  - "Added one X" was announced twice. The voice panel's status line is now the only channel.
+  - A suggestion at the maximum quantity silently dropped focus. "Yes" now uses `aria-disabled`, and both the question and a press explain why.
+  - Spoken readback could overlap a screen reader. A remembered "Read suggestions aloud after I speak" switch now controls it, and "Say it again" stays available.
+  - The card and drawer steppers handled the maximum differently. Both now use `aria-disabled` and announce the limit.
+  - The drawer's quantity used a prohibited `aria-label` on a span. It now uses visually hidden text.
+  - The header's "Shop by voice" was a link, hidden below 900px. It is now a button, icon-only below 600px.
+  - Aisle chips were links that never navigated. They are now buttons.
+  - The receipt had no step list and a table that could not reflow at 320px (WCAG 1.4.10). Both are fixed; the step list is shared as `CheckoutSteps`.
+  - The hero's "$35" was a second copy of the merchant threshold. It now comes from `GET /store` and the pill hides if that fails.
+  - The footer credit now links Open Food Facts and the CC BY-SA 3.0 license, and says prices are illustrative.
+- **Why:** The user asked for a full test pass with attention to the small details.
+- **Verify:** `make test` (132 passed); `npm --prefix web run build`. Browser checks: at 20 the stepper is `aria-disabled` with a visible note; back at 0, focus returns to Add; Escape and Remove handle focus; Cancel in the bank widget returns focus to Approve with a message; `/checkout/complete` returned 40 bytes (`verified`, `transaction_id` only); Baseline audio is served; bad routes and bad receipt ids degrade cleanly; the phone header stays 64px with a 44px voice button.
+- **Risk/Notes:** Not verifiable headless: real microphone capture, Windows Hello, and a screen reader's handling of "Payment approved" versus the receipt heading focus (review item 8, left for a manual NVDA check).
+
 ### 2026-09-26 10:00 - Agentic shopping Feature 2: structured intent extraction
 
 - **Files:** api/openai_intent.py (new), api/agentic_shopping.py, api/config.py, tests/test_agentic_intent.py (new), AGENTS.md.
@@ -135,6 +168,9 @@ alternatives considered and why they were rejected.
 - **Why:** Feature 1 of the additive OpenAI agentic-purchase pipeline requires an isolated audio-to-text stage while preserving the working local Whisper flow.
 - **Verify:** `.venv/bin/python -m pytest -q tests/test_agentic_transcription.py` (5 passed); `make test` (137 passed); `npm --prefix web run build`; OpenAPI contains `/shopping/voice`, `/shopping/text`, and `/agentic-shopping/transcribe`.
 - **Risk/Notes:** No live OpenAI call was made because no `OPENAI_API_KEY` was supplied. The new endpoint is not connected to the UI yet. `api/asr.py`, `/shopping/voice`, `/shopping/text`, and `VoiceShopping.jsx` were not changed. No new dependency was added; the service uses pinned `httpx`. During verification, the route-preservation test was adjusted to inspect FastAPI's generated OpenAPI paths because this FastAPI version stores included routers behind internal route markers; application behavior was unaffected.
+
+---
+
 
 ---
 
