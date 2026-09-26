@@ -34,6 +34,8 @@
 
 **Agentic quantity reasoning (2026-09-26):** "As much X as I can under $10" fills the budget (floor of limit over unit price, capped at MAX_QUANTITY), "under $2 each" limits one unit, "the cheapest" picks the lowest price among relevant matches, and package words count packages ("a dozen eggs" is 1 carton). Live: yogurt under $10 gives 6 for $8.94, soup for $20 gives 13, pasta for $15 gives 7, with no questions.
 
+**Agentic baskets (ADR 11, 2026-09-26; 192 tests pass):** The agentic panel now uses `/agentic-shopping/basket/*`. One request can name several items and ask for meals ("stuff for tuna salad, and two cokes, under 20 bucks"). Named items go straight to the cart with Undo; meal picks and unsaid items show a review list (Remove, Put back, Add to cart). Meal ingredients must be real catalog ids, unknown ones are listed as not sold here, and a basket budget is shared with "as many as fit" items taking what is left. Recording limit is 25 s on this panel only. Not yet spoken through the browser.
+
 **Next, in order:**
 0. Set a valid backend `OPENAI_API_KEY` and speak a catalog request through the new full-request panel to verify the live provider round trip. Automated provider behavior is covered with mocked responses, but no live key was available during implementation.
 1. Phase 7 live: set `LLM_API_KEY` and try a spoken item end to end. The rerank on-vs-off intent-accuracy delta (§3.2) needs real recordings of people naming catalog items; TORGO has none and §2.3 forbids imitating them.

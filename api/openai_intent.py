@@ -4,6 +4,7 @@ This stage receives text only. It never transcribes audio, searches the
 catalog, changes a cart, or treats an uncertain interpretation as confirmed.
 """
 import json
+import logging
 import math
 import sqlite3
 from typing import Literal
@@ -15,6 +16,7 @@ from api.catalog import list_catalog
 from api.config import OPENAI_API_KEY, OPENAI_INTENT_MODEL, OPENAI_TIMEOUT_S
 
 RESPONSES_URL = "https://api.openai.com/v1/responses"
+log = logging.getLogger(__name__)
 
 
 class IntentUnavailable(RuntimeError):
@@ -149,8 +151,8 @@ def _catalog_reference() -> str:
         catalog = list_catalog()
     except sqlite3.Error as exc:
         raise IntentUnavailable("The store catalog is unavailable. Your cart was not changed.") from exc
-    lines = [f"- {p['brand']} | {p['name']} | {p['size']} | {p['category']}" for p in catalog]
-    return "Store catalog (brand | product | size | aisle):\n" + "\n".join(lines)
+    lines = [f"- {p['id']} | {p['brand']} | {p['name']} | {p['size']} | {p['category']}" for p in catalog]
+    return "Store catalog (id | brand | product | size | aisle):\n" + "\n".join(lines)
 
 
 def strict_schema(node):
@@ -180,28 +182,28 @@ def _output_text(payload: object) -> str:
     raise IntentUnavailable("OpenAI did not return shopping intent. Your cart was not changed.")
 
 
-def extract_shopping_intent(transcript: str) -> ShoppingIntent:
-    """Interpret a raw transcript without modifying or returning over it."""
+def _structured_call(model: type[BaseModel], name: str, description: str,
+                     instructions: str, transcript: str):
+    """One Structured Outputs call; the transcript is input data, never instructions."""
     if not OPENAI_API_KEY:
         raise IntentUnavailable(
             "Agentic voice shopping is not configured yet. Add OPENAI_API_KEY on the merchant server."
         )
-
-    schema = strict_schema(ShoppingIntent.model_json_schema())
+    schema = strict_schema(model.model_json_schema())
     try:
         response = httpx.post(
             RESPONSES_URL,
             headers={"Authorization": f"Bearer {OPENAI_API_KEY}"},
             json={
                 "model": OPENAI_INTENT_MODEL,
-                "instructions": f"{SYSTEM_INSTRUCTIONS}\n\n{_catalog_reference()}",
+                "instructions": f"{instructions}\n\n{_catalog_reference()}",
                 "input": transcript,
                 "store": False,
                 "text": {
                     "format": {
                         "type": "json_schema",
-                        "name": "shopping_intent",
-                        "description": "Unresolved shopping intent extracted from a raw transcript.",
+                        "name": name,
+                        "description": description,
                         "strict": True,
                         "schema": schema,
                     }
@@ -210,10 +212,105 @@ def extract_shopping_intent(transcript: str) -> ShoppingIntent:
             timeout=OPENAI_TIMEOUT_S,
         )
         response.raise_for_status()
-        return ShoppingIntent.model_validate(json.loads(_output_text(response.json())))
+        return model.model_validate(json.loads(_output_text(response.json())))
     except IntentUnavailable:
         raise
     except (httpx.HTTPError, ValueError, ValidationError, TypeError) as exc:
+        # The shopper sees a sanitized message; the server log says why, without
+        # the transcript or the model's output.
+        status = getattr(getattr(exc, "response", None), "status_code", None)
+        detail = f"HTTP {status}" if status else "; ".join(
+            f"{'.'.join(map(str, e['loc']))}: {e['type']}" for e in exc.errors()[:5]
+        ) if isinstance(exc, ValidationError) else type(exc).__name__
+        log.warning("%s extraction failed: %s", name, detail)
         raise IntentUnavailable(
             "OpenAI intent extraction is unavailable. Your transcript and cart were not changed."
         ) from exc
+
+
+def extract_shopping_intent(transcript: str) -> ShoppingIntent:
+    """Interpret a raw transcript as one item, without modifying it."""
+    return _structured_call(ShoppingIntent, "shopping_intent",
+                            "Unresolved shopping intent extracted from a raw transcript.",
+                            SYSTEM_INSTRUCTIONS, transcript)
+
+
+# --- A whole basket: several named items, and meals ---------------------------
+
+class MealIngredient(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    need: str                  # what the dish needs: "tuna", "mayonnaise"
+    productId: str | None      # a catalog id, or null when the store does not sell it
+    quantity: int              # packages, scaled to the servings
+    reason: str                # a few words: "for the salad"
+
+    @field_validator("quantity")
+    @classmethod
+    def quantity_must_be_positive(cls, value: int) -> int:
+        if value < 1:
+            raise ValueError("quantity must be positive")
+        return value
+
+
+class MealPlan(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    goal: str                  # "tuna salad"
+    servings: int | None
+    ingredients: list[MealIngredient]
+    cannotVerify: list[str]    # needs the catalog cannot confirm: "gluten-free", "nut-free"
+
+
+class BasketIntent(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    intent: Literal["shop", "not_shopping", "unclear"]
+    items: list[ShoppingIntent]
+    meals: list[MealPlan]
+    totalBudget: PriceField    # one limit for everything asked
+
+
+BASKET_INSTRUCTIONS = SYSTEM_INSTRUCTIONS + """
+
+The transcript may ask for several things at once. Put each product the speaker
+names in items, one entry per product, each with intent shop and its own quantity,
+brand, and price limit, following every rule above. Keep items in spoken order.
+A request can have both: "stuff for tuna salad and two cokes, under 20 bucks" is
+one meal (tuna salad, with its ingredients) plus one item (Coca-Cola, quantity 2),
+with totalBudget 20. A dish's ingredients always go in that meal, never in items,
+even when other items are named. Never drop a named product because a meal is
+also requested.
+
+When the speaker asks for what is needed to make a dish or reach a goal ("stuff to
+make tuna salad", "breakfast for four", "snacks for a movie night"), add a meal.
+goal is the dish alone ("tuna salad", "breakfast"). List the ingredients of the
+usual recipe and nothing else: tuna salad is tuna, mayonnaise, celery, onion,
+lemon juice, salt, and pepper, not a green salad. For a goal rather than one dish
+("breakfast for four"), list the components of a typical version: eggs, bread or
+waffles, bacon, juice. need is the generic ingredient ("tuna", "mayonnaise"),
+never a product name. For each ingredient, set productId to the id of the catalog
+item that is that ingredient, or null when the store does not sell it; never use
+an id that is not in the catalog, and never fill a gap with a different food the
+store happens to have. You may add at most two common accompaniments the store
+sells (bread for a tuna salad sandwich), each with a reason that starts with
+"optional:".
+Quantity is in packages scaled to the servings (assume 2 servings when none are
+given). Give a reason of a few words. cannotVerify is only for dietary or allergy
+needs the speaker stated ("vegetarian", "no nuts"): never claim a product meets
+them, and never list ingredients there.
+
+When one budget covers everything ("keep it all under $20"), put it in
+totalBudget with per total, and leave each item's maxPrice empty unless that item
+has its own limit. Otherwise totalBudget is null with confidence missing.
+
+If the request is too vague to choose anything ("something for dinner", "some
+food"), return no items and no meals, with intent unclear. If it is not about shopping, use intent
+not_shopping."""
+
+
+def extract_basket_intent(transcript: str) -> BasketIntent:
+    """Interpret a raw transcript as a basket of named items and meals."""
+    return _structured_call(BasketIntent, "shopping_basket",
+                            "Named items and meal requests extracted from a raw transcript.",
+                            BASKET_INSTRUCTIONS, transcript)

@@ -262,7 +262,11 @@ def _brand_repair(intent: ShoppingIntent, vocabulary: StoreVocabulary) -> tuple[
     return None
 
 
-def _plan(intent: ShoppingIntent, vocabulary: StoreVocabulary) -> _Plan:
+def _said(text: str | None, raw_transcript: str) -> bool:
+    return bool(text) and bool(words(text)) and words(text) <= words(raw_transcript)
+
+
+def _plan(intent: ShoppingIntent, vocabulary: StoreVocabulary, raw_transcript: str) -> _Plan:
     plan = _Plan()
     if intent.intent not in {"shop", "unclear"}:
         return plan
@@ -318,7 +322,14 @@ def _plan(intent: ShoppingIntent, vocabulary: StoreVocabulary) -> _Plan:
         add(_ask("product", product.sourceText, product.value,
                  _wording("product", product.sourceText, product.value)))
 
-    # 4. Other values the model was unsure of.
+    # 4. Other values the model was unsure of. An unsure detail whose words the
+    #    speaker never said ("size 6 Pack" for "two cokes") was filled in from the
+    #    catalog: it is dropped, not asked about.
+    for name in TEXT_FIELDS[2:]:
+        extracted = getattr(intent, name)
+        if (extracted.value is not None and extracted.confidence in UNCERTAIN
+                and not _said(extracted.sourceText, raw_transcript)):
+            plan.ignored.add(name)
     for name in TEXT_FIELDS[1:]:
         extracted = getattr(intent, name)
         if extracted.value is not None and extracted.confidence in UNCERTAIN and name not in plan.ignored:
@@ -430,7 +441,7 @@ def build_clarification_state(
 ) -> ClarificationState:
     """Return pending questions, answers, and accepted values, recomputed."""
     saved_answers = dict(answers or {})
-    plan = _plan(intent, store_vocabulary())
+    plan = _plan(intent, store_vocabulary(), raw_transcript)
     questions = plan.questions
     unknown = set(saved_answers) - set(questions)
     if unknown:

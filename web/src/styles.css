@@ -413,6 +413,22 @@ main.route-enter h1 { font-size: 2.25rem; font-weight: 700; letter-spacing: -0.0
 .agentic-intent dd { margin: 0; overflow-wrap: anywhere; }
 .agentic-ready { background: var(--tint); border-color: var(--ink); }
 .agentic-restart { justify-self: start; }
+.agentic-item-head { margin: 0; font-size: 1rem; font-weight: 800; }
+.agentic-lines { list-style: none; margin: 0; padding: 0; display: grid; gap: var(--space-2); }
+.agentic-line {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+  padding: var(--space-3);
+  background: var(--bg);
+  border: 1px solid var(--divider);
+  border-radius: var(--radius);
+}
+.agentic-line > div { min-width: 0; }
+.agentic-line-name { margin: 0; font-weight: 700; overflow-wrap: anywhere; }
+.agentic-line.is-skipped .agentic-line-name { text-decoration: line-through; }
 @media (max-width: 599px) {
   .agentic-shopping { padding: 20px var(--space-4); }
   .agentic-head { display: grid; }

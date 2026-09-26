@@ -1,15 +1,14 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import {
-  answerAgenticClarification,
-  extractAgenticIntent,
-  finalizeAgenticShopping,
-  prepareAgenticCart,
-  startAgenticClarifications,
+  answerBasketClarification,
+  extractAgenticBasket,
+  prepareAgenticBasket,
+  startBasketClarifications,
   transcribeAgenticShopping,
 } from "../lib/api.js";
 import { useCart } from "../lib/cart.jsx";
 import { formatCents } from "../lib/money.js";
-import { MAX_SECONDS, startRecording } from "../lib/shoppingRecorder.js";
+import { AGENTIC_MAX_SECONDS, startRecording } from "../lib/shoppingRecorder.js";
 import { MicIcon, StopIcon } from "./Icons.jsx";
 
 const LABELS = {
@@ -22,9 +21,10 @@ function cartKey(lines) {
   return JSON.stringify([...lines].sort((a, b) => a.productId.localeCompare(b.productId)));
 }
 
+const toLines = (items) => items.map((line) => ({ productId: line.product_id, quantity: line.quantity }));
+
 // Only what the shopper actually said: unstated fields are not listed.
 function spokenFields(intent) {
-  if (!intent) return [];
   const fields = Object.keys(LABELS).flatMap((field) => {
     const entry = intent[field];
     if (field === "quantity" && entry?.mode === "fill_budget") return [[field, "As many as fit your limit"]];
@@ -36,11 +36,8 @@ function spokenFields(intent) {
   return intent.preferCheapest ? [...fields, ["preferCheapest", "Cheapest match"]] : fields;
 }
 
-function requestText(final) {
-  const count = final.quantityMode === "fill_budget" ? "As many as fit" : `${final.quantity} ×`;
-  const limit = final.maxPrice == null ? "no price limit"
-    : `up to $${final.maxPrice}${final.pricePer === "each" ? " each" : ""}`;
-  return `${count} ${final.brand ? `${final.brand} ` : ""}${final.product}, ${limit}${final.preferCheapest ? ", cheapest" : ""}.`;
+function productLabel(product) {
+  return product.name.toLowerCase().includes(product.brand.toLowerCase()) ? product.name : `${product.brand} ${product.name}`;
 }
 
 export default function AgenticVoiceShopping({ onOpenCart }) {
@@ -50,23 +47,24 @@ export default function AgenticVoiceShopping({ onOpenCart }) {
   const timer = useRef(null);
   const controller = useRef(null);
   const run = useRef(0);
+  const before = useRef(null);         // the cart when shopping started, for review and Undo
   const undoSnapshot = useRef(null);
   const correctionInput = useRef(null);
   const [phase, setPhase] = useState("idle");
   const [message, setMessage] = useState("");
   const [rawTranscript, setRawTranscript] = useState("");
-  const [intentResult, setIntentResult] = useState(null);
+  const [extraction, setExtraction] = useState(null);
   const [resolution, setResolution] = useState(null);
-  const [finalized, setFinalized] = useState(null);
-  const [commerce, setCommerce] = useState(null);
+  const [result, setResult] = useState(null);
+  const [skip, setSkip] = useState([]);
   const [correction, setCorrection] = useState("");
 
   latestLines.current = cart.lines;
   const question = resolution?.pendingClarifications?.[0] ?? null;
-  const busy = !["idle", "clarifying", "ready", "error"].includes(phase);
+  const busy = !["idle", "clarifying", "reviewing", "ready", "error"].includes(phase);
   const listening = phase === "listening";
-  const understood = useMemo(() => spokenFields(intentResult?.extractedIntent), [intentResult]);
-  const assumptions = finalized?.assumptions ?? resolution?.assumptions ?? [];
+  const request = extraction?.extractedRequest;
+  const several = (request?.items?.length ?? 0) > 1;
 
   useEffect(() => () => {
     run.current += 1;
@@ -82,37 +80,37 @@ export default function AgenticVoiceShopping({ onOpenCart }) {
     controller.current?.abort();
     recording.current?.stop().catch(() => {});
     recording.current = null;
+    before.current = null;
     undoSnapshot.current = null;
-    setPhase("idle"); setMessage(messageText); setRawTranscript(""); setIntentResult(null);
-    setResolution(null); setFinalized(null); setCommerce(null); setCorrection("");
+    setPhase("idle"); setMessage(messageText); setRawTranscript(""); setExtraction(null);
+    setResolution(null); setResult(null); setSkip([]); setCorrection("");
   }
 
-  async function prepareCart(state, signal, currentRun) {
-    setPhase("finalizing");
-    const completed = await finalizeAgenticShopping(state, signal);
-    if (currentRun !== run.current) return;
-    setFinalized(completed);
-    const before = latestLines.current;
-    const beforeKey = cartKey(before);
-    setPhase("shopping");
-    const result = await prepareAgenticCart(completed, before, signal);
-    if (currentRun !== run.current) return;
-    setCommerce(result);
-    if (result.status !== "cart_ready") {
-      setPhase("error"); setMessage(result.message || "No matching products were found. Your cart was not changed."); return;
+  function apply(proposal) {
+    if (cartKey(latestLines.current) !== cartKey(before.current)) {
+      setPhase("error");
+      setMessage("Your cart changed while Timbre was shopping, so nothing was added. Try again when you are ready.");
+      return;
     }
-    if (cartKey(latestLines.current) !== beforeKey) {
-      setPhase("error"); setMessage("Your cart changed while Timbre was shopping, so the prepared cart was not applied. Try again when you are ready."); return;
-    }
-    cart.replaceLines(result.items);
-    const applied = result.items.map((line) => ({ productId: line.product_id, quantity: line.quantity }));
-    undoSnapshot.current = { before, appliedKey: cartKey(applied) };
+    cart.replaceLines(proposal.items);
+    undoSnapshot.current = { before: before.current, appliedKey: cartKey(toLines(proposal.items)) };
     setPhase("ready");
-    setMessage(result.message || "Your cart is ready. Review it before checkout.");
+    setMessage(proposal.status === "needs_confirmation" ? "Added. Review your cart before checkout." : proposal.message);
   }
 
-  // The cart is the confirmation: nothing is bought until checkout, and one
-  // click takes the agent's change back out.
+  async function prepare(state, skipped, signal, currentRun) {
+    setPhase("shopping");
+    before.current ??= latestLines.current;
+    const proposal = await prepareAgenticBasket(state, before.current, skipped, signal);
+    if (currentRun !== run.current) return;
+    setResult(proposal);
+    if (proposal.status === "no_matches") { setPhase("error"); setMessage(proposal.message); return; }
+    if (proposal.status === "needs_confirmation") { setPhase("reviewing"); setMessage(""); return; }
+    apply(proposal);
+  }
+
+  // The cart is the confirmation for named items: nothing is bought until
+  // checkout, and one click takes the agent's change back out.
   function undo() {
     const snapshot = undoSnapshot.current;
     if (!snapshot) return;
@@ -120,9 +118,9 @@ export default function AgenticVoiceShopping({ onOpenCart }) {
       setMessage("Your cart has changed since then, so Timbre left it alone. You can edit it in the cart.");
       return;
     }
-    cart.replaceLines(snapshot.before);
+    cart.replaceLines(snapshot.before.map((line) => ({ product_id: line.productId, quantity: line.quantity })));
     undoSnapshot.current = null;
-    setCommerce(null);
+    setResult(null);
     setPhase("idle");
     setMessage("Removed. Your cart is back to how it was.");
   }
@@ -130,29 +128,32 @@ export default function AgenticVoiceShopping({ onOpenCart }) {
   async function continueResolution(state, signal, currentRun) {
     setResolution(state);
     if (state.pendingClarifications.length > 0) { setPhase("clarifying"); return; }
-    await prepareCart(state, signal, currentRun);
+    await prepare(state, [], signal, currentRun);
+  }
+
+  async function guarded(currentRun, work, onError) {
+    controller.current = new AbortController();
+    try {
+      await work(controller.current.signal);
+    } catch (err) {
+      if (currentRun === run.current && err.name !== "AbortError") onError(err);
+    }
   }
 
   async function processAudio(wav, currentRun) {
-    controller.current = new AbortController();
-    const { signal } = controller.current;
-    try {
+    await guarded(currentRun, async (signal) => {
       setPhase("transcribing");
       const transcription = await transcribeAgenticShopping(wav, signal);
       if (currentRun !== run.current) return;
       setRawTranscript(transcription.transcript);
       setPhase("interpreting");
-      const intent = await extractAgenticIntent(transcription.transcript, signal);
+      const extracted = await extractAgenticBasket(transcription.transcript, signal);
       if (currentRun !== run.current) return;
-      setIntentResult(intent);
-      const state = await startAgenticClarifications(intent, signal);
+      setExtraction(extracted);
+      const state = await startBasketClarifications(extracted, signal);
       if (currentRun !== run.current) return;
       await continueResolution(state, signal, currentRun);
-    } catch (err) {
-      if (currentRun === run.current && err.name !== "AbortError") {
-        setPhase("error"); setMessage(err.message || "Timbre could not process that request. Your cart was not changed.");
-      }
-    }
+    }, (err) => { setPhase("error"); setMessage(err.message || "Timbre could not process that request. Your cart was not changed."); });
   }
 
   async function stop() {
@@ -176,11 +177,11 @@ export default function AgenticVoiceShopping({ onOpenCart }) {
     const currentRun = run.current;
     setPhase("starting");
     try {
-      const take = await startRecording();
+      const take = await startRecording({ maxSeconds: AGENTIC_MAX_SECONDS });
       if (currentRun !== run.current) { await take.stop(); return; }
       recording.current = take;
       setPhase("listening");
-      timer.current = setTimeout(stop, MAX_SECONDS * 1000);
+      timer.current = setTimeout(stop, AGENTIC_MAX_SECONDS * 1000);
     } catch (err) {
       if (currentRun === run.current) { setPhase("error"); setMessage(err.message || "The microphone could not start."); }
     }
@@ -189,51 +190,62 @@ export default function AgenticVoiceShopping({ onOpenCart }) {
   async function answer(action, value) {
     if (!question || busy) return;
     const currentRun = run.current;
-    controller.current = new AbortController();
     setPhase("interpreting"); setMessage("");
-    try {
-      const state = await answerAgenticClarification(
+    await guarded(currentRun, async (signal) => {
+      const state = await answerBasketClarification(
         resolution,
-        { field: question.field, action, ...(action === "correct" ? { value } : {}) },
-        controller.current.signal,
+        { item: question.item, field: question.field, action, ...(action === "correct" ? { value } : {}) },
+        signal,
       );
       if (currentRun !== run.current) return;
       setCorrection("");
-      await continueResolution(state, controller.current.signal, currentRun);
-    } catch (err) {
-      if (currentRun === run.current && err.name !== "AbortError") { setPhase("clarifying"); setMessage(err.message); }
-    }
+      await continueResolution(state, signal, currentRun);
+    }, (err) => { setPhase("clarifying"); setMessage(err.message); });
+  }
+
+  async function toggle(index) {
+    if (busy) return;
+    const next = skip.includes(index) ? skip.filter((i) => i !== index) : [...skip, index];
+    setSkip(next);
+    const currentRun = run.current;
+    await guarded(currentRun, (signal) => prepare(resolution, next, signal, currentRun),
+      (err) => { setPhase("reviewing"); setMessage(err.message); });
   }
 
   const progress = {
-    starting: "Opening microphone…", listening: "Listening…", transcribing: "Transcribing…",
-    interpreting: "Interpreting…", finalizing: "Finalizing your request…", shopping: "Shopping…",
+    starting: "Opening microphone…", listening: `Listening… up to ${AGENTIC_MAX_SECONDS} seconds.`,
+    transcribing: "Transcribing…", interpreting: "Interpreting…", shopping: "Shopping…",
   }[phase];
-  const final = finalized?.finalIntent;
+  const kept = result?.lines?.filter((line) => line.product && line.quantity && !line.skipped) ?? [];
 
   return <section className="agentic-shopping stack" aria-labelledby="agentic-shopping-title">
     <div className="section-head agentic-head">
       <div><p className="eyebrow">New agentic path</p><h2 id="agentic-shopping-title">Shop a full request by voice</h2></div>
-      <p className="note">Say it the way you would to a person, for example “two bananas, under five dollars.” Timbre asks only if it is unsure.</p>
+      <p className="note">Say it the way you would to a person: “two cokes and as much yogurt as fits in ten dollars,” or “what I need for tuna salad.” Timbre asks only if it is unsure.</p>
     </div>
-    <p>Timbre fills in your cart and shows you what it did. Nothing is bought until you check out, and you can undo it in one step.</p>
+    <p>Timbre fills in your cart and shows you what it did. For a meal, it shows the list first. Nothing is bought until you check out.</p>
     <div className="voice-shopping-actions">
       <button className={`btn btn-primary voice-mic${listening ? " is-recording" : ""}`} type="button" onClick={listening ? stop : record} disabled={busy && !listening}>
         {listening ? <StopIcon size={22} /> : <MicIcon size={24} />}
         {listening ? "Stop recording" : "Speak a shopping request"}
       </button>
-      {(busy || listening || phase === "clarifying") && <button className="btn btn-secondary" type="button" onClick={() => reset("Canceled. Your cart was not changed.")}>Cancel</button>}
+      {(busy || listening || phase === "clarifying" || phase === "reviewing") && <button className="btn btn-secondary" type="button" onClick={() => reset("Canceled. Your cart was not changed.")}>Cancel</button>}
       {listening && <span className="rec-indicator"><span className="rec-dot" aria-hidden="true" />Recording</span>}
     </div>
     <p className="voice-status" role="status" aria-live="polite">{progress || (phase === "ready" ? "" : message)}</p>
 
     {rawTranscript && <div className="agentic-block"><h3>Timbre heard</h3><p className="agentic-transcript">“{rawTranscript}”</p></div>}
-    {understood.length > 0 && <div className="agentic-block"><h3>Timbre understood</h3><dl className="agentic-intent">
-      {understood.map(([field, value]) => <div key={field}><dt>{LABELS[field]}</dt><dd>{value}</dd></div>)}
-    </dl></div>}
+    {request && (request.items.length > 0 || request.meals.length > 0) && <div className="agentic-block"><h3>Timbre understood</h3>
+      {request.items.map((item, i) => <div key={`item-${i}`} className="stack">
+        {several && <p className="agentic-item-head">{item.product.value ?? `Item ${i + 1}`}</p>}
+        <dl className="agentic-intent">{spokenFields(item).map(([field, value]) => <div key={field}><dt>{LABELS[field]}</dt><dd>{value}</dd></div>)}</dl>
+      </div>)}
+      {request.meals.map((meal, i) => <p key={`meal-${i}`}><strong>Meal:</strong> {meal.goal}{meal.servings ? `, for ${meal.servings}` : ""}</p>)}
+      {request.totalBudget?.value != null && <p><strong>Budget for everything:</strong> ${request.totalBudget.value}</p>}
+    </div>}
 
     {question && phase === "clarifying" && <fieldset className="agentic-question">
-      <legend>{question.question}</legend>
+      <legend>{several ? `About the ${question.itemLabel}: ` : ""}{question.question}</legend>
       {question.options.length > 0 ? <div className="voice-shopping-actions">
         {question.options.map((option) => <button key={option.action} className={option.action === "confirm" ? "btn btn-primary" : "btn btn-secondary"} type="button" onClick={() => answer(option.action)}>{option.label}</button>)}
       </div> : <form className="voice-type" onSubmit={(event) => { event.preventDefault(); if (correction.trim()) answer("correct", correction.trim()); }}>
@@ -243,13 +255,35 @@ export default function AgenticVoiceShopping({ onOpenCart }) {
       </form>}
     </fieldset>}
 
-    {final && phase !== "ready" && <div className="agentic-block"><h3>Shopping for</h3><p>{requestText(final)}</p></div>}
-    {phase === "ready" && commerce && <div className="agentic-ready" role="status">
+    {phase === "reviewing" && result && <div className="agentic-ready" role="region" aria-labelledby="agentic-review-title">
+      <h3 id="agentic-review-title">Check this list</h3>
+      <p>{result.message}</p>
+      <ul className="agentic-lines">
+        {result.lines.filter((line) => line.product).map((line) => <li key={line.index} className={`agentic-line${line.skipped ? " is-skipped" : ""}`}>
+          <div>
+            <p className="agentic-line-name">{line.quantity} × {productLabel(line.product)}{line.skipped ? " (removed)" : ""}</p>
+            <p className="note">{formatCents(line.lineCents)}{line.note ? ` · ${line.note}` : ""}</p>
+          </div>
+          <button className="btn btn-secondary" type="button" onClick={() => toggle(line.index)}
+            aria-label={`${line.skipped ? "Put back" : "Remove"} ${productLabel(line.product)}`}>{line.skipped ? "Put back" : "Remove"}</button>
+        </li>)}
+      </ul>
+      {result.notCarried.length > 0 && <p className="note">Not sold here: {result.notCarried.join(", ")}.</p>}
+      {result.unverified.length > 0 && <p className="note">Could not check: {result.unverified.join(", ")}.</p>}
+      {result.quote && <p className="note">Cart total with these: {formatCents(result.quote.total_cents)}, including tax and delivery.</p>}
+      <div className="voice-shopping-actions">
+        <button className="btn btn-primary" type="button" onClick={() => apply(result)} disabled={kept.length === 0}>Add {kept.length === 1 ? "it" : `these ${kept.length}`} to cart</button>
+      </div>
+    </div>}
+
+    {phase === "ready" && result && <div className="agentic-ready" role="status">
       <h3>Added to your cart</h3>
-      <p>{message}</p>
-      {commerce.quote && <p className="note">Cart total {formatCents(commerce.quote.total_cents)}, including tax and delivery.</p>}
-      {assumptions.length > 0 && <p className="note">Assumed: {assumptions.join(" ")}</p>}
-      {commerce.unverifiedPreferences?.length > 0 && <p className="note">Could not check: {commerce.unverifiedPreferences.join(", ")}.</p>}
+      <p>{result.message}</p>
+      {result.lines.filter((line) => line.note && line.source === "request").map((line) => <p key={line.index} className="note">{line.request}: {line.note}</p>)}
+      {result.notCarried.length > 0 && <p className="note">Not sold here: {result.notCarried.join(", ")}.</p>}
+      {result.assumptions.length > 0 && <p className="note">Assumed: {result.assumptions.join(" ")}</p>}
+      {result.unverified.length > 0 && <p className="note">Could not check: {result.unverified.join(", ")}.</p>}
+      {result.quote && <p className="note">Cart total {formatCents(result.quote.total_cents)}, including tax and delivery.</p>}
       <div className="voice-shopping-actions">
         <button className="btn btn-primary" type="button" onClick={onOpenCart}>Review cart</button>
         <a className="btn btn-secondary" href="#/checkout">Continue to checkout</a>

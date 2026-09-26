@@ -187,6 +187,19 @@ def test_a_store_brand_the_speaker_never_said_is_neither_asked_nor_used():
     assert said.acceptedValues["brand"] == "Chobani"
 
 
+def test_an_unsure_detail_the_speaker_never_said_is_dropped_not_asked():
+    # Live: "two cokes" came back with size "6 Pack" at medium confidence.
+    payload = intent_payload()
+    payload.update(brand=MISSING, ambiguities=[], color=MISSING,
+                   size={"value": "6 Pack", "confidence": "medium", "sourceText": "6 Pack"})
+    state = build_clarification_state("two cokes please", ShoppingIntent.model_validate(payload))
+    assert state.pendingClarifications == [] and "size" not in state.acceptedValues
+
+    said = build_clarification_state("two six pack cokes", ShoppingIntent.model_validate(
+        {**payload, "size": {"value": "six pack", "confidence": "medium", "sourceText": "six pack"}}))
+    assert [q.field for q in said.pendingClarifications] == ["size"]
+
+
 def test_missing_product_gets_one_open_question():
     payload = intent_payload()
     payload.update(product=MISSING, ambiguities=[], brand=MISSING, missingInformation=["product"])

@@ -79,3 +79,20 @@ export const prepareAgenticCart = (finalizedRequest, lines, signal) =>
     signal,
     true,
   );
+
+// A whole basket: several named items and meals (api/basket.py). `prepare`
+// returns a server-priced proposal; the caller applies `items` to the
+// CartProvider only when the shopper has seen it (or it needs no review).
+export const extractAgenticBasket = (transcript, signal) =>
+  shoppingRequest("/agentic-shopping/basket/intent", { transcript }, signal, true);
+export const startBasketClarifications = (extraction, signal) =>
+  shoppingRequest("/agentic-shopping/basket/clarifications", extraction, signal, true);
+export const answerBasketClarification = (state, answer, signal) =>
+  shoppingRequest("/agentic-shopping/basket/clarifications/answer", { state, answer }, signal, true);
+export const prepareAgenticBasket = (state, lines, skip, signal) =>
+  shoppingRequest(
+    "/agentic-shopping/basket/prepare",
+    { state, existingItems: toItems(lines), skip },
+    signal,
+    true,
+  );

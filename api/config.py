@@ -37,6 +37,12 @@ OPENAI_TIMEOUT_S = 20.0
 # when its spelling is at least this similar, or when it sounds the same.
 AGENTIC_BRAND_MATCH_RATIO = 0.8
 AGENTIC_DEFAULT_QUANTITY = 1     # used, and disclosed, when the shopper names no quantity
+# A whole basket or a meal takes longer to say than one item. Agentic path only;
+# the Whisper shopping path and the issuer keep their own limits.
+AGENTIC_AUDIO_MAX_SECONDS = 25
+AGENTIC_AUDIO_MAX_BYTES = 900000   # 25 s of 16-bit 16 kHz mono is 800 kB, plus the WAV header
+AGENTIC_TEXT_MAX = 1000
+AGENTIC_MAX_BASKET_ITEMS = 12      # named items in one request
 
 # --- Cart pricing (flat demo rates, not real tax logic) ---
 TAX_RATE_BPS = 400               # basis points: 400 = 4.00%
