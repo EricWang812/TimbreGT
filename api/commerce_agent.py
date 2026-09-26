@@ -10,7 +10,7 @@ from typing import Literal
 from pydantic import BaseModel, ConfigDict, Field
 
 from api.cart import CartError, price_cart
-from api.catalog import list_catalog
+from api.catalog import list_catalog, merchant_scope
 from api.checkout import CartLine
 from api.config import MAX_CART_LINES, MAX_QUANTITY, MERCHANT_ID
 from api.final_intent import FinalShoppingIntent, FinalizedShoppingRequest
@@ -52,6 +52,7 @@ class CatalogProduct(BaseModel):
     price_cents: int
     image_url: str
     image_credit: str
+    market: str = "grocer"
 
 
 class ProductMatch(BaseModel):
@@ -80,13 +81,6 @@ def _matches_words(requested: str, available: str) -> bool:
     return bool(requested_words) and requested_words <= words(available)
 
 
-def _merchant_matches(requested: str) -> bool:
-    available = f"{MERCHANT_ID} Seaside Market"
-    requested_words = words(requested)
-    available_words = words(available)
-    return bool(requested_words) and (
-        requested_words <= available_words or available_words <= requested_words
-    )
 
 
 def _unverified_preferences(intent: FinalShoppingIntent, selected: CatalogProduct | None = None) -> list[str]:
@@ -149,8 +143,12 @@ def search_products(intent: FinalShoppingIntent, catalog: list[dict],
                     in_cart: dict[str, int] | None = None) -> tuple[list[ProductMatch], str | None]:
     """Filter hard constraints, then rank. With no match, say which constraint
     ruled everything out, so the shopper can change just that."""
-    if intent.merchantPreference and not _merchant_matches(intent.merchantPreference):
-        return [], "The requested merchant is not this store."
+    if intent.merchantPreference:
+        sold_here, shop = merchant_scope(intent.merchantPreference)
+        if not sold_here:
+            return [], "The requested merchant is not this store."
+        if shop:
+            catalog = [raw for raw in catalog if raw.get("market", "grocer") == shop]
     if intent.currency and intent.currency.upper() != "USD":
         return [], "This catalog is priced in USD, so Timbre will not convert the confirmed budget."
 

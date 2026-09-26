@@ -70,6 +70,7 @@ Read `AGENTS.md` first (start with its Handoff section). `CLAUDE.md` only import
   SpeechBrain ResNet.
 - Shopping speech recognition (store side only): Whisper small via faster-whisper.
 - No corpus audio is redistributed in this repository.
-- Product photos in `web/public/products/`: Open Food Facts contributors,
-  licensed CC BY-SA 3.0 (https://world.openfoodfacts.org). Prices in the demo
-  catalog are approximate and set by hand.
+- Product photos in `web/public/products/`: contributors to Open Food Facts,
+  Open Beauty Facts, Open Pet Food Facts, and Open Products Facts, licensed
+  CC BY-SA 3.0 (https://world.openfoodfacts.org and its sister projects).
+  Prices in the demo catalog are approximate and set by hand.

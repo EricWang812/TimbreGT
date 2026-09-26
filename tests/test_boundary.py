@@ -41,7 +41,9 @@ def clients(monkeypatch):
 def _seed():
     with merchant_db.transaction() as conn:
         conn.execute(
-            "INSERT OR REPLACE INTO products VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+            "INSERT OR REPLACE INTO products"
+            " (id, name, brand, size, category, price_cents, image_url, image_credit)"
+            " VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
             (PRODUCT_ID, "Test Apple", "Test Farm", "1 lb", "produce", PRICE_CENTS,
              "https://example.invalid/apple.jpg", "test fixture"),
         )

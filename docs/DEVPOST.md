@@ -134,4 +134,5 @@ API (optional reranking, not run live), Stripe (test mode), py_webauthn, SimpleW
 SQLite, React, Vite, Web Audio API, Web Speech API (speech synthesis), Hugging
 Face datasets and Hub, matplotlib, pytest, httpx. Data: TORGO (Rudzicz et al.,
 2012), EasyCall (Turrisi et al., 2021, CC BY-NC 2.0, non-commercial evaluation
-only), product photos from Open Food Facts (CC BY-SA 3.0).
+only), product photos from Open Food Facts, Open Beauty Facts, Open Pet Food
+Facts, and Open Products Facts (CC BY-SA 3.0).

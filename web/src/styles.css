@@ -871,3 +871,147 @@ pre.mono {
 .drift-filter legend { font-weight: 600; margin-bottom: var(--space-2); }
 .drift-filter label { min-height: var(--tap); display: inline-flex; align-items: center; gap: var(--space-2); }
 .drift-filter input { width: 20px; height: 20px; }
+
+/* --- Boardwalk: themed shops that share one cart ---------------------------- */
+
+/* Each shop's accent and tint. Computed ratios, in order: white on --shop,
+   --shop on --shop-tint, --text-muted on --shop-tint. */
+[data-market="grocer"] { --shop: #0e4f47; --shop-tint: #e6f4ee; }   /* 9.43, 8.32, 6.69 */
+[data-market="tech"]   { --shop: #1e3a8a; --shop-tint: #e0e7ff; }   /* 10.36, 8.41, 6.15 */
+[data-market="sun"]    { --shop: #9a3412; --shop-tint: #ffedd5; }   /* 7.31, 6.38, 6.61 */
+[data-market="pets"]   { --shop: #3f6212; --shop-tint: #ecfccb; }   /* 7.08, 6.52, 6.98 */
+[data-market="all"]    { --shop: #0b2545; --shop-tint: #e8eef6; }   /* 15.39, 13.18, 6.49 */
+
+/* A striped awning with a scalloped edge: each stripe ends in one scallop.
+   Decorative only (aria-hidden); the shop name is always in text. */
+.shop-awning {
+  display: block;
+  height: 22px;
+  background: repeating-linear-gradient(90deg, var(--shop) 0 22px, var(--shop-tint) 22px 44px);
+  -webkit-mask: linear-gradient(#000 0 0) top / 100% 11px no-repeat,
+    radial-gradient(circle at 11px 0, #000 11px, transparent 11.5px) 0 11px / 22px 11px repeat-x;
+  mask: linear-gradient(#000 0 0) top / 100% 11px no-repeat,
+    radial-gradient(circle at 11px 0, #000 11px, transparent 11.5px) 0 11px / 22px 11px repeat-x;
+}
+
+.boardwalk { margin-block: var(--space-8) var(--space-6); }
+.shop-signs {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+}
+@media (min-width: 600px) { .shop-signs { grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 16px; } }
+@media (min-width: 1000px) { .shop-signs { grid-template-columns: repeat(5, minmax(0, 1fr)); } }
+.shop-signs > li { display: flex; min-width: 0; }
+.shop-sign {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  padding: 0;
+  text-align: left;
+  font: inherit;
+  color: var(--text);
+  background: var(--surface);
+  border: 1.5px solid var(--control-border);      /* 4.66:1 on white */
+  border-radius: var(--radius-card);
+  overflow: hidden;
+  cursor: pointer;
+  transition: border-color var(--dur-fast) var(--ease-out), box-shadow var(--dur-fast) var(--ease-out),
+    translate var(--dur-fast) var(--ease-out);
+}
+.shop-sign:hover { border-color: var(--shop); box-shadow: var(--shadow-2); }
+/* Chosen: the shop's color frames the sign, and a "Showing" pill says so in words. */
+.shop-sign[aria-pressed="true"] { border-color: var(--shop); background: var(--shop-tint); box-shadow: inset 0 0 0 2px var(--shop); }
+@media (hover: hover) and (prefers-reduced-motion: no-preference) {
+  .shop-sign:hover { translate: 0 -3px; }
+}
+.shop-sign-body { display: grid; gap: var(--space-1); padding: var(--space-3) var(--space-4) var(--space-4); }
+.shop-sign-icon {
+  display: inline-grid;
+  place-items: center;
+  width: 44px;
+  height: 44px;
+  margin-bottom: var(--space-1);
+  border-radius: 50%;
+  background: var(--shop);
+  color: #ffffff;
+}
+.shop-sign-name { font: 700 1.0625rem/1.25 var(--font-heading); color: var(--shop); }
+.shop-sign-tagline { font-size: 0.9375rem; line-height: 1.35; color: var(--text-muted); }
+.shop-sign-foot { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-2); margin-top: var(--space-1); }
+.shop-sign-count { font-size: 0.875rem; font-weight: 700; color: var(--text-muted); }
+.shop-sign-showing {
+  padding: 0 var(--space-2);
+  border-radius: var(--radius-pill);
+  background: var(--shop);
+  color: #ffffff;
+  font-size: 0.8125rem;
+  font-weight: 800;
+}
+
+.shop { margin-bottom: var(--space-8); }
+.shop-banner {
+  margin-bottom: var(--space-6);
+  overflow: hidden;
+  border-radius: var(--radius-card);
+  background: var(--shop);
+  color: #ffffff;
+  box-shadow: var(--shadow);
+}
+/* On the banner the awning hangs over the shop color, so its stripes are light. */
+.shop-banner .shop-awning { height: 26px; background: repeating-linear-gradient(90deg, #ffffff 0 22px, var(--shop-tint) 22px 44px); }
+.shop-banner-body {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-3) var(--space-4);
+  padding: var(--space-3) var(--space-6) var(--space-6);
+}
+.shop-banner h2 { color: #ffffff; font-size: 1.75rem; }
+.shop-banner :focus-visible { outline-color: #ffffff; }
+.shop-banner-tagline { color: #ffffff; }
+.shop-banner-icon {
+  display: inline-grid;
+  place-items: center;
+  flex: none;
+  width: 56px;
+  height: 56px;
+  border-radius: 50%;
+  background: var(--shop-tint);
+  color: var(--shop);
+}
+.shop-banner-count {
+  margin-left: auto;
+  padding: var(--space-1) var(--space-3);
+  border: 1.5px solid rgb(255 255 255 / 0.6);    /* decorative outline */
+  border-radius: var(--radius-pill);
+  font-weight: 700;
+}
+.shop .section-head h3 { font-size: 1.375rem; font-weight: 700; color: var(--shop); }
+/* Inside a shop, its color carries through: prices and Add buttons (white text
+   on every --shop is 7.08:1 or more; the hover is darker still). */
+.shop .price { color: var(--shop); }
+.shop .btn-primary { background: var(--shop); }
+.shop .btn-primary:hover:not(:disabled) { background: color-mix(in srgb, var(--shop) 80%, #000000); }
+@media (prefers-reduced-motion: no-preference) {
+  .shop-banner-icon svg { animation: bob 3.2s ease-in-out infinite; }
+  @keyframes bob { 50% { translate: 0 -3px; } }
+}
+
+/* Which shop a cart or checkout line comes from, in words. */
+.line-shop {
+  display: inline-block;
+  justify-self: start;
+  width: fit-content;
+  margin: 0 0 2px;
+  padding: 0 var(--space-2);
+  border-radius: var(--radius-pill);
+  background: var(--shop-tint);
+  color: var(--shop);
+  font-size: 0.8125rem;
+  font-weight: 800;
+}

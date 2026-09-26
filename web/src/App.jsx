@@ -87,8 +87,12 @@ function Shell() {
       </main>
       <footer className="site-footer">
         <p className="note">
-          Seaside Market is a demo storefront for Timbre. Prices are illustrative. Product photos:{" "}
-          <a href="https://world.openfoodfacts.org" target="_blank" rel="noopener noreferrer">Open Food Facts contributors (opens a new tab)</a>,{" "}
+          Seaside Market is a demo storefront for Timbre: four shops on one boardwalk, one cart. Prices are
+          illustrative. Product photos: contributors to{" "}
+          <a href="https://world.openfoodfacts.org" target="_blank" rel="noopener noreferrer">Open Food Facts (opens a new tab)</a>,{" "}
+          <a href="https://world.openbeautyfacts.org" target="_blank" rel="noopener noreferrer">Open Beauty Facts (opens a new tab)</a>,{" "}
+          <a href="https://world.openpetfoodfacts.org" target="_blank" rel="noopener noreferrer">Open Pet Food Facts (opens a new tab)</a>, and{" "}
+          <a href="https://world.openproductsfacts.org" target="_blank" rel="noopener noreferrer">Open Products Facts (opens a new tab)</a>,{" "}
           <a href="https://creativecommons.org/licenses/by-sa/3.0/" target="_blank" rel="noopener noreferrer">CC BY-SA 3.0 (opens a new tab)</a>.
         </p>
         <p className="note"><a href="#/bank/enroll">Set up voice approval at your bank (demo)</a></p>

@@ -241,7 +241,8 @@ CREATE TABLE IF NOT EXISTS products (
     category      TEXT NOT NULL,
     price_cents   INTEGER NOT NULL CHECK (price_cents > 0),
     image_url     TEXT NOT NULL,
-    image_credit  TEXT NOT NULL
+    image_credit  TEXT NOT NULL,
+    market        TEXT NOT NULL DEFAULT 'grocer'   -- which boardwalk shop (api/catalog.py MARKETS)
 );
 
 CREATE TABLE IF NOT EXISTS orders (
@@ -353,6 +354,10 @@ def init_db() -> None:
     try:
         conn.execute("PRAGMA journal_mode = WAL")
         conn.executescript(SCHEMA)
+        # Additive migration: catalogs seeded before the boardwalk shops were
+        # all grocery, which is what the default says.
+        if "market" not in {row["name"] for row in conn.execute("PRAGMA table_info(products)")}:
+            conn.execute("ALTER TABLE products ADD COLUMN market TEXT NOT NULL DEFAULT 'grocer'")
         # Additive migration for databases created by Feature 2. SQLite's
         # CREATE TABLE IF NOT EXISTS does not add later branding columns.
         market_columns = {row["name"] for row in conn.execute("PRAGMA table_info(markets)")}

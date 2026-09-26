@@ -26,7 +26,7 @@ from typing import Literal
 
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
-from api.catalog import list_catalog
+from api.catalog import list_catalog, merchant_scope
 from api.config import AGENTIC_BRAND_MATCH_RATIO, AGENTIC_DEFAULT_QUANTITY
 from api.llm import words
 from api.openai_intent import Ambiguity, ShoppingIntent
@@ -37,7 +37,11 @@ REQUIRED_FIELDS = ("product",)
 UNCERTAIN = {"medium", "low"}
 TEXT_FIELDS = ("product", "brand", "size", "color", "merchantPreference", "useCase")
 # Words that never stand for a brand on their own.
-_FILLER = {"for", "the", "and", "with", "my", "some", "any", "one", "two", "under", "over", "a", "an"}
+_FILLER = {"for", "the", "and", "with", "my", "some", "any", "one", "two", "under", "over", "a", "an",
+           # Never a misheard brand: "from" sounds like "Farm" (Pepperidge Farm), and
+           # price words are ranking instructions ("cheap" is not Cape Cod).
+           "from", "at", "in", "of", "to", "cheap", "cheapest", "cheaper", "affordable",
+           "inexpensive", "budget", "very", "really"}
 
 FIELD_LABELS = {
     "product": "product",
@@ -254,6 +258,9 @@ def _brand_repair(intent: ShoppingIntent, vocabulary: StoreVocabulary) -> tuple[
                 candidates.append((name, extracted.sourceText or extracted.value))
         candidates += [("optionalPreferences", item) for item in intent.optionalPreferences]
         candidates += [("importantRequirements", item) for item in intent.importantRequirements]
+        # "the pet store" or "Seaside Tech" names a boardwalk shop, whatever
+        # field the model filed it under, and is never a misheard brand.
+        candidates = [(name, text) for name, text in candidates if not merchant_scope(text)[0]]
     for origin, text in candidates:
         match = closest_store_brand(text, vocabulary)
         if match:

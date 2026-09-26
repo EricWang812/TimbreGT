@@ -12,7 +12,7 @@ from typing import Literal
 import httpx
 from pydantic import BaseModel, ConfigDict, ValidationError, field_validator
 
-from api.catalog import list_catalog
+from api.catalog import MARKETS, list_catalog
 from api.config import OPENAI_API_KEY, OPENAI_INTENT_MODEL, OPENAI_TIMEOUT_S
 
 RESPONSES_URL = "https://api.openai.com/v1/responses"
@@ -125,6 +125,11 @@ catalog term in the field with confidence medium and add one ambiguity of kind
 possible_transcription_error with heard and proposed. Never assign the same words
 to more than one field.
 
+The store is a boardwalk of shops that share one cart; the catalog's last column
+names each product's shop. Set merchantPreference only when the speaker names a
+shop ("from Seaside Tech", "at the pet shop"), using the shop's name as the catalog
+spells it. Never set it just because a product happens to be sold by one shop.
+
 Quantity counts packages as the store sells them: "a dozen eggs" is 1 when the store
 sells 12-count cartons, "a six pack of Coke" is 1 six-pack, "two cans of soup" is 2.
 When the speaker asks for as many or as much as a budget allows ("as much X as I can
@@ -155,8 +160,11 @@ def _catalog_reference() -> str:
         catalog = list_catalog()
     except sqlite3.Error as exc:
         raise IntentUnavailable("The store catalog is unavailable. Your cart was not changed.") from exc
-    lines = [f"- {p['id']} | {p['brand']} | {p['name']} | {p['size']} | {p['category']}" for p in catalog]
-    return "Store catalog (id | brand | product | size | aisle):\n" + "\n".join(lines)
+    shops = {m["id"]: m["name"] for m in MARKETS}
+    lines = [f"- {p['id']} | {p['brand']} | {p['name']} | {p['size']} | {p['category']} | "
+             f"{shops.get(p.get('market'), p.get('market'))}" for p in catalog]
+    return ("Store catalog, every shop on the Seaside Market boardwalk, one cart "
+            "(id | brand | product | size | aisle | shop):\n" + "\n".join(lines))
 
 
 def strict_schema(node):

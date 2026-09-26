@@ -263,7 +263,7 @@ export default function AgenticVoiceShopping({ onOpenCart }) {
   return <section className="agentic-shopping stack" aria-labelledby={AGENTIC_VOICE_TITLE_ID}>
     <div className="section-head agentic-head">
       <div><p className="eyebrow">New agentic path</p><h2 id={AGENTIC_VOICE_TITLE_ID} tabIndex={-1}>Shop a full request by voice or text</h2></div>
-      <p className="note">Say or type it the way you would to a person: “two cokes and as much yogurt as fits in ten dollars,” or “what I need for tuna salad.” Timbre asks only if it is unsure.</p>
+      <p className="note">Say or type it the way you would to a person: “two cokes and as much yogurt as fits in ten dollars,” “what I need for tuna salad,” or “sunscreen, dog treats, and Bose earbuds.” It shops every shop on the boardwalk and asks only if it is unsure.</p>
     </div>
     <p>Timbre fills in your cart and shows you what it did. For a meal, it shows the list first. Nothing is bought until you check out.</p>
     <div className="voice-shopping-actions">

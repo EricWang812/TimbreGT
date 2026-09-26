@@ -454,6 +454,8 @@
 
 **Known limitations:** Marketplace results are API-only and are not yet rendered by the agentic UI or directly added to the legacy browser cart. The marketplace search cannot modify products, order status, fulfillment choices, or payment authorization.
 
+**Boardwalk shops (2026-09-26, 343 tests pass):** the storefront is four themed shops on one merchant (Seaside Grocer, Seaside Tech, Sandbar Sun & Care, Landlubber Pets; 88 real products with photos from the Open Food Facts projects). One cart, one checkout, one issuer session, so the §2.5 boundary is unchanged. Agentic shopping and voice search cover every shop, and naming a shop limits the search to it. Details in the 16:30 CHANGELOG entry.
+
 **Next, in order:**
 0. Set a valid backend `OPENAI_API_KEY` and speak a catalog request through the new full-request panel to verify the live provider round trip. Automated provider behavior is covered with mocked responses, but no live key was available during implementation.
 1. Phase 7 live: set `LLM_API_KEY` and try a spoken item end to end. The rerank on-vs-off intent-accuracy delta (§3.2) needs real recordings of people naming catalog items; TORGO has none and §2.3 forbids imitating them.

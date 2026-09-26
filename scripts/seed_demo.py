@@ -5,9 +5,11 @@ Usage: python -m scripts.seed_demo   (normally via `make seed` or `make reset`)
 Idempotent: products are upserted, cardholders are created once, and each
 cardholder gets a payment token only if they have none.
 
-Catalog: real products from Open Food Facts (names and sizes as printed on
-the package; photos in web/public/products/, CC BY-SA 3.0, Open Food Facts
-contributors). Prices are approximate US retail, set by hand for the demo.
+Catalog: real products from the Open Food Facts projects (Food, Beauty, Pet
+Food, and Products Facts; names and sizes as printed on the package; photos in
+web/public/products/, CC BY-SA 3.0, each project's contributors), sold across
+the boardwalk shops in api/catalog.py MARKETS. Prices are approximate US
+retail, set by hand for the demo.
 
 Cardholders are fictional. Their cards are tokenized through the configured
 PaymentProvider from a named sandbox test token (Stripe's `pm_card_*`), never
@@ -18,6 +20,7 @@ import json
 from datetime import datetime, timezone
 
 from api import db as merchant_db
+from api.catalog import MARKET_IDS
 from issuer import db as issuer_db
 from issuer.config import STRIPE_SECRET_KEY
 from issuer.payments import get_provider
@@ -25,7 +28,15 @@ from ml.constants import REPO_ROOT
 
 CATALOG_FILE = REPO_ROOT / "scripts" / "seed_catalog.json"
 IMAGE_DIR = REPO_ROOT / "web" / "public" / "products"
-IMAGE_CREDIT = "Photo: Open Food Facts contributors, CC BY-SA 3.0"
+# A product's "photo" key names its source; food is the default. All four are
+# Open Food Facts projects under the same license.
+IMAGE_CREDITS = {
+    "food": "Photo: Open Food Facts contributors, CC BY-SA 3.0",
+    "beauty": "Photo: Open Beauty Facts contributors, CC BY-SA 3.0",
+    "petfood": "Photo: Open Pet Food Facts contributors, CC BY-SA 3.0",
+    "products": "Photo: Open Products Facts contributors, CC BY-SA 3.0",
+}
+DEFAULT_MARKET = "grocer"   # a product without a "market" key is sold by Seaside Grocer
 FAKE_TOKEN_PREFIX = "fake_tok_"   # tokens minted by issuer/payments/fake_provider.py
 
 DEMO_CARDHOLDERS = [
@@ -43,6 +54,9 @@ def seed_catalog() -> int:
     missing = [p["barcode"] for p in products if not (IMAGE_DIR / f"{p['barcode']}.jpg").exists()]
     if missing:
         raise FileNotFoundError(f"product photos missing in {IMAGE_DIR}: {missing}")
+    unknown = {p.get("market", DEFAULT_MARKET) for p in products} - MARKET_IDS
+    if unknown:
+        raise ValueError(f"products name shops that do not exist: {sorted(unknown)}")
     with merchant_db.transaction() as conn:
         # The JSON is the whole catalog: drop products it no longer lists, so a
         # re-seed never shows a removed item with a missing photo. Orders keep
@@ -51,10 +65,11 @@ def seed_catalog() -> int:
         conn.execute(f"DELETE FROM products WHERE id NOT IN ({', '.join('?' for _ in ids)})", ids)
         conn.executemany(
             "INSERT OR REPLACE INTO products"
-            " (id, name, brand, size, category, price_cents, image_url, image_credit)"
-            " VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+            " (id, name, brand, size, category, price_cents, image_url, image_credit, market)"
+            " VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
             [(p["id"], p["name"], p["brand"], p["size"], p["category"], p["price_cents"],
-              f"/products/{p['barcode']}.jpg", IMAGE_CREDIT) for p in products],
+              f"/products/{p['barcode']}.jpg", IMAGE_CREDITS[p.get("photo", "food")],
+              p.get("market", DEFAULT_MARKET)) for p in products],
         )
     return len(products)
 

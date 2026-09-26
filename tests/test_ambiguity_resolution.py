@@ -153,6 +153,17 @@ def test_declining_a_brand_repair_keeps_the_original_words_and_asks_nothing_more
     assert declined.setAside == []
 
 
+def test_shop_names_and_price_words_are_never_misheard_brands():
+    # Live: "from the pet store" became Pepperidge Farm ("from" sounds like
+    # "Farm"), and "cheap" became Cape Cod.
+    from api.ambiguity_resolution import StoreVocabulary
+    vocabulary = StoreVocabulary(brands=("Pepperidge Farm", "Cape Cod", "Bose"), product_words=frozenset())
+    assert closest_store_brand("from the pet store", vocabulary) is None
+    assert closest_store_brand("from Seaside Tech", vocabulary) is None
+    assert closest_store_brand("cheap", vocabulary) is None
+    assert closest_store_brand("boys", vocabulary) == "Bose"   # a real mishearing still is
+
+
 def test_a_proposed_brand_must_be_one_the_store_carries():
     vocabulary = store_vocabulary()
     assert closest_store_brand("boys", vocabulary) == "Bose"
