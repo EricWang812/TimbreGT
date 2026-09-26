@@ -5,6 +5,8 @@ import { MAX_QUANTITY, useCart } from "../lib/cart.jsx";
 import { useAnnounce } from "../lib/announce.jsx";
 import { formatCents } from "../lib/money.js";
 import { canSpeak, speak, stopSpeaking } from "../lib/speak.js";
+import { MicIcon, StopIcon } from "./Icons.jsx";
+import { VOICE_START_ID, VOICE_TITLE_ID } from "./jump.js";
 
 export default function VoiceShopping({ products }) {
   const cart = useCart();
@@ -109,27 +111,58 @@ export default function VoiceShopping({ products }) {
     cart.add(suggestion.id);
     const message = `Added one ${suggestion.name} to your cart.`;
     setMessage(message); announce(message); setSuggestion(null);
+    focusSpeak();
   }
 
-  return <section className="voice-shopping stack" aria-labelledby="voice-shopping-title">
-    <h2 id="voice-shopping-title">Shop by voice</h2>
-    <p>Name one item, then confirm it with a tap. Recording stops after {MAX_SECONDS} seconds. Shopping audio is used by the store to find an item; it is separate from your bank's voice approval.</p>
-    <div className="voice-shopping-actions">
-      <button className="btn btn-primary" type="button" disabled={phase === "starting" || phase === "thinking"}
-        onClick={phase === "recording" ? stop : record}>{phase === "recording" ? "Stop recording" : phase === "starting" ? "Opening microphone…" : "Speak an item"}</button>
-      {phase !== "idle" && <button className="btn btn-secondary" type="button" onClick={cancel}>Cancel</button>}
+  // The answer buttons unmount after a choice; land keyboard focus on the next
+  // natural action instead of letting it fall to the page body.
+  function focusSpeak() {
+    requestAnimationFrame(() => document.getElementById(VOICE_START_ID)?.focus());
+  }
+
+  const listening = phase === "recording";
+  const atMax = suggestion ? cart.quantityOf(suggestion.id) >= MAX_QUANTITY : false;
+
+  return <section className="voice-shopping" aria-labelledby={VOICE_TITLE_ID}>
+    <div className="voice-intro">
+      <h2 id={VOICE_TITLE_ID} tabIndex={-1}>Shop by voice</h2>
+      <p className="voice-explain">Name one item, then confirm it with a tap. Recording stops after {MAX_SECONDS} seconds. Shopping audio is used by the store to find an item; it is separate from your bank's voice approval.</p>
     </div>
-    <form className="stack" onSubmit={submit}>
+    <div className="voice-shopping-actions">
+      <button id={VOICE_START_ID} className={`btn btn-primary voice-mic${listening ? " is-recording" : ""}`} type="button"
+        disabled={phase === "starting" || phase === "thinking"}
+        onClick={listening ? stop : record}>
+        {listening ? <StopIcon size={22} /> : <MicIcon size={24} />}
+        {listening ? "Stop recording" : phase === "starting" ? "Opening microphone…" : "Speak an item"}
+      </button>
+      {phase !== "idle" && <button className="btn btn-secondary" type="button" onClick={cancel}>Cancel</button>}
+      {/* A13: the word "Recording" carries the state; the dot only reinforces it. */}
+      {listening && <span className="rec-indicator"><span className="rec-dot" aria-hidden="true" />Recording</span>}
+    </div>
+    <form className="voice-type" onSubmit={submit}>
       <label htmlFor="shopping-text">Or type an item</label>
-      <input id="shopping-text" value={text} onChange={(e) => setText(e.target.value)} maxLength={300} disabled={phase !== "idle"} />
-      <button className="btn btn-secondary" type="submit" disabled={phase !== "idle" || !text.trim()}>Find this item</button>
+      <div className="voice-type-row">
+        <input id="shopping-text" value={text} onChange={(e) => setText(e.target.value)} maxLength={300} disabled={phase !== "idle"} />
+        <button className="btn btn-secondary" type="submit" disabled={phase !== "idle" || !text.trim()}>Find this item</button>
+      </div>
     </form>
-    <p role="status" aria-live="polite">{phase === "recording" ? "Recording. Say one item, then select Stop recording." : phase === "thinking" ? "Finding your item…" : message}</p>
-    {suggestion && <div className="voice-shopping-actions">
-      <button ref={answer} className="btn btn-primary" type="button" onClick={add} disabled={cart.quantityOf(suggestion.id) >= MAX_QUANTITY}>Yes, add one</button>
-      <button className="btn btn-secondary" type="button" onClick={() => { stopSpeaking(); setSuggestion(null); setMessage("Nothing added. Try another item or use the product buttons."); }}>No, try again</button>
-      {canSpeak() && <button className="btn btn-secondary" type="button" onClick={() => speak(message)}>Say it again</button>}
-      {cart.quantityOf(suggestion.id) >= MAX_QUANTITY && <p>You already have the maximum quantity of this item.</p>}
+    <p className="voice-status" role="status" aria-live="polite">{listening ? "Recording. Say one item, then select Stop recording." : phase === "thinking" ? "Finding your item…" : message}</p>
+    {/* A12: the suggestion fades and rises in (styles.css); focus moves to "Yes, add one". */}
+    {suggestion && <div className="voice-suggestion">
+      <div className="voice-suggestion-item">
+        <img className="voice-suggestion-photo" src={suggestion.image_url} alt="" width="64" height="64" decoding="async" />
+        <div>
+          <p className="product-brand">{suggestion.brand}</p>
+          <p className="voice-suggestion-name">{suggestion.name}</p>
+          <p className="price">{formatCents(suggestion.price_cents)}</p>
+        </div>
+      </div>
+      <div className="voice-shopping-actions">
+        <button ref={answer} className="btn btn-primary" type="button" onClick={add} disabled={atMax}>Yes, add one</button>
+        <button className="btn btn-secondary" type="button" onClick={() => { stopSpeaking(); setSuggestion(null); setMessage("Nothing added. Try another item or use the product buttons."); focusSpeak(); }}>No, try again</button>
+        {canSpeak() && <button className="btn btn-secondary" type="button" onClick={() => speak(message)}>Say it again</button>}
+      </div>
+      {atMax && <p>You already have the maximum quantity of this item.</p>}
     </div>}
   </section>;
 }

@@ -24,6 +24,16 @@ alternatives considered and why they were rejected.
 
 ---
 
+### 2026-09-26 08:30 - Storefront redesign with purposeful motion
+
+- **Files:** web/src/pages/{Shop,Checkout,Receipt}.jsx, web/src/components/{SiteHeader,VoiceShopping,CartDrawer,Icons}.jsx, web/src/components/ProductCard.jsx (new), web/src/components/jump.js (new), web/src/styles.css, web/src/styles/checkout.css. Built by two helper agents in parallel with strict file ownership, then integrated and reviewed.
+- **What:** A teal "market band" hero whose content is the voice shopping panel; aisle chips that jump to and focus each section; a 2/3/4/5-column grid of bordered product cards with image fade-in, computed unit prices, an "In cart: N" badge, and an Add button that becomes a quantity stepper; a sticky 64px header with a scroll-linked shadow and a cart badge that bumps on adds; a slide-over cart drawer with a free-delivery meter (threshold from the quote), pill steppers, and a pinned footer; a checkout with a step list and a sticky order summary (summary first on phones, items in a details element); a centered receipt with a drawn check mark and the two-key approval response as a code card. Motion follows the brief's 17-item spec plus a one-time staggered grid entrance, image zoom inside its well on hover (cards never lift), and a pulsing ring on the microphone while recording.
+- **Why:** User asked to elevate the storefront with animations, grounded in how real grocery stores look (brief: Whole Foods, Weee, Misfits Market, Instacart tokens, Baymard, NN/g, WCAG 2.3.3).
+- **Verify:** `npm --prefix web run build`; `make test` (131 passed). Browser QA at 1440, 900, and 375px: no horizontal scroll, no console errors, header exactly 64px, Add focuses the stepper's plus, the badge bumps, the drawer meter reads "Add $26.42 more for free delivery" at an $8.58 subtotal, the empty drawer hands focus to "Speak an item", checkout and receipt render, Baseline and Dashboard unaffected. A stylesheet audit found no movement outside `prefers-reduced-motion: no-preference`.
+- **Risk/Notes:** Fixed during QA: the cart button made the header 72px (sticky chips would tuck under it); the drawer said "ships free" when the quote lacked a threshold (it now hides the meter instead); keyboard focus fell to the body after answering a voice suggestion (it now returns to "Speak an item"); the checkout step connector dangled when wrapping at phone width; dead drawer and checkout rules removed from styles.css. The "$35" in the hero fact pill is a second copy of `FREE_SHIPPING_MIN_CENTS` (the catalog response carries no threshold). An independent accessibility review is in progress.
+
+---
+
 ### 2026-09-26 07:30 - Storefront redesign foundation (tokens, motion rules, research)
 
 - **Files:** web/src/styles.css (tokens, reduced-motion rule), web/src/styles/checkout.css (new, empty), web/src/main.jsx, web/src/components/Icons.jsx (Mic, Trash), api/checkout.py (`/cart/quote` returns `free_shipping_min_cents`), design-system/seaside-market/MASTER.md (overrides 1 and 7 revised).
