@@ -7,13 +7,19 @@ import { scrollAndFocus } from "../components/jump.js";
 import { getStoreInfo } from "../lib/api.js";
 import { formatCents } from "../lib/money.js";
 
-// Display sections, in order. Seafood leads: it is a seaside market. Small
-// catalog categories are merged so no section is a lone card in a wide row.
+// Display sections, in order. Seafood leads: it is a seaside market. The rest
+// follow a store walk: fresh first, then chilled, frozen, and shelf aisles.
 const SECTIONS = [
   ["sea", "From the sea", ["seafood"]],
-  ["fresh", "Fresh and dairy", ["produce", "bakery", "dairy"]],
+  ["produce", "Fruit and vegetables", ["produce"]],
+  ["bakery", "Bakery", ["bakery"]],
+  ["dairy", "Dairy and eggs", ["dairy"]],
+  ["meat", "Meat and deli", ["meat"]],
+  ["frozen", "Frozen", ["frozen"]],
+  ["breakfast", "Breakfast", ["breakfast"]],
+  ["pantry", "Pantry", ["pantry"]],
+  ["snacks", "Snacks", ["snacks"]],
   ["drinks", "Drinks", ["drinks"]],
-  ["pantry", "Pantry and snacks", ["pantry", "snacks"]],
 ];
 const SKELETON_CARDS = 8;
 // Grid entrance: each card starts a little after the one before, capped so the

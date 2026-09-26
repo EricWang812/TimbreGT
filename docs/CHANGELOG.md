@@ -24,6 +24,21 @@ alternatives considered and why they were rejected.
 
 ---
 
+### 2026-09-26 11:00 - Catalog grows to 56 products with clean, uniform photos
+
+- **Files:** scripts/seed_catalog.json, web/public/products/ (39 added, 7 deleted, the rest re-normalized), scripts/seed_demo.py, web/src/pages/Shop.jsx (`SECTIONS`), web/src/styles.css. Catalog work by a helper agent; reviewed on a contact sheet.
+- **What:**
+  - **Catalog:** 56 real US grocery products (up from 18) across ten aisles. The six products with no clean photo were dropped (Dole bananas, GoGo SqueeZ, Café Bustelo, Chobani nonfat 32 oz, Terra Delyssa, S.Pellegrino), and eight existing photos were replaced with cleaner Open Food Facts images.
+  - **Photos:** every photo is an Open Food Facts image (CC BY-SA 3.0), viewed before acceptance and normalized to a 600x600 white-padded progressive JPEG under 70 KB (2.7 MB total).
+  - **Seeding:** `seed_demo` now deletes products the JSON no longer lists, so re-seeding never leaves a removed item with a missing photo and does not need `make reset` (which would wipe enrollments).
+  - **Product names:** two names were adjusted to what shoppers say ("Butter, Unsalted", "Penne Pasta") so the keyword fallback suggests them for "butter" and "pasta".
+  - **Aisle chips:** no longer sticky. Ten chips wrap to two or three rows, and a 115 to 168px bar under the header would have hidden focused headings (WCAG 2.4.11).
+- **Why:** The user asked for more food items and better images. AGENTS.md §1.1 said "about 20"; this expands it at the user's request.
+- **Verify:** `python -m scripts.seed_demo` prints "catalog: 56 products" and the running catalog has no missing photos; `make test` (132 passed); `npm --prefix web run build`. At 1440px there is no horizontal scroll and chip jumps land headings at 130px, below the 64px header. Voice probes (typed): milk, eggs, coffee, chips, orange juice, strawberries, bacon are confident; butter, pasta, bread, ice cream ask a yes/no question.
+- **Risk/Notes:** Prices are hand-set estimates. A few sizes were read off the package. Weaker photos: the Kirkland shrimp and Folgers crops, Dave's 21 Grains (tight crop), and a faint grey behind Sriracha and the prosciutto. There are no bananas, since Open Food Facts had no clean shot.
+
+---
+
 ### 2026-09-26 10:10 - Full demo run: fixes for the details (a11y review, titles, favicon, cart races)
 
 - **Files:** web/index.html, web/public/favicon.svg (new), web/src/App.jsx, web/src/lib/{cart.jsx,api.js}, web/src/components/{VoiceShopping,ProductCard,CartDrawer,SiteHeader}.jsx, web/src/components/CheckoutSteps.jsx (new), web/src/pages/{Shop,Checkout,Receipt}.jsx, web/src/styles.css, web/src/styles/checkout.css, api/catalog.py (`GET /store`), tests/test_shopping.py. Most of these landed in the teammate commit "2:55 am" (2cd529c) without an entry; this entry covers them and the remaining Shop.jsx changes.
