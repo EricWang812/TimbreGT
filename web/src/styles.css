@@ -1,0 +1,438 @@
+/* Seaside Market storefront + the issuer's verification widget.
+   Design system: design-system/seaside-market/MASTER.md (ui-ux-pro-max),
+   with the Timbre overrides recorded there.
+
+   Accessibility floor (CLAUDE.md §13.1): text contrast >= 4.5:1, control
+   borders and focus rings >= 3:1, touch targets >= 44px, meaning never
+   carried by color alone. Every ratio below was computed, not estimated. */
+
+:root {
+  /* Store surface */
+  --bg: #ecfdf5;
+  --surface: #ffffff;
+  --text: #0f172a;            /* 16.95:1 on --bg */
+  --ink: #064e3b;             /* 9.23:1 on --bg, 9.72:1 on white: headings, prices */
+  --text-muted: #475569;      /* 7.19:1 on --bg, 7.58:1 on white */
+  --primary: #047857;         /* white text on it: 5.48:1 */
+  --primary-hover: #065f46;   /* white text on it: 7.68:1 */
+  --control-border: #5f7a70;  /* 4.66:1 on white, 4.43:1 on --bg */
+  --divider: #d1e7dd;         /* decorative only, never a control boundary */
+  --focus: #0b2545;           /* 14.61:1 on --bg, 15.39:1 on white */
+  --error: #b91c1c;           /* 6.47:1 on white */
+  --ok: #047857;              /* 5.48:1 on white */
+
+  /* Bank surface (the issuer's widget: a different party, so a different look) */
+  --bank-bg: #0b2545;
+  --bank-panel: #13315c;
+  --bank-text: #ffffff;       /* 15.39:1 on --bank-bg */
+  --bank-muted: #c9d6e8;      /* 10.45:1 on --bank-bg, 8.80:1 on --bank-panel */
+  --bank-accent: #f4c95d;     /* --bank-bg text on it: 9.79:1 */
+  --bank-border: #8da9c4;     /* 6.30:1 on --bank-bg */
+  --bank-error: #fca5a5;      /* 8.11:1 on --bank-bg */
+  --bank-ok: #86efac;         /* 10.96:1 on --bank-bg */
+
+  --font-heading: "Rubik Variable", system-ui, sans-serif;
+  --font-body: "Nunito Sans Variable", system-ui, sans-serif;
+  --radius: 12px;
+  --radius-small: 8px;
+  --tap: 44px;
+  --space-1: 0.25rem;
+  --space-2: 0.5rem;
+  --space-3: 0.75rem;
+  --space-4: 1rem;
+  --space-6: 1.5rem;
+  --space-8: 2rem;
+  --shadow: 0 1px 2px rgb(15 23 42 / 0.08), 0 4px 12px rgb(15 23 42 / 0.06);
+  --ease: 180ms ease-out;
+
+  font-family: var(--font-body);
+  font-size: 1.125rem;        /* 18px base: larger than default for low-vision users */
+  line-height: 1.55;
+  color: var(--text);
+  background: var(--bg);
+}
+
+*, *::before, *::after { box-sizing: border-box; }
+/* WCAG 2.4.11: anything scrolled into view (including focused headings)
+   clears the sticky header instead of hiding beneath it. */
+html { scroll-padding-top: 5.5rem; }
+body { margin: 0; min-height: 100vh; }
+img { display: block; max-width: 100%; }
+h1, h2, h3 { font-family: var(--font-heading); color: var(--ink); line-height: 1.2; margin: 0; }
+h1 { font-size: 2rem; }
+h2 { font-size: 1.5rem; }
+h3 { font-size: 1.125rem; font-weight: 600; }
+p { margin: 0; }
+
+:focus-visible {
+  outline: 3px solid var(--focus);
+  outline-offset: 3px;
+}
+[tabindex="-1"]:focus { outline: none; }  /* programmatic focus on headings only */
+
+.visually-hidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+}
+
+.skip-link {
+  position: absolute;
+  left: var(--space-4);
+  top: -100px;
+  z-index: 10;
+  padding: var(--space-3) var(--space-4);
+  background: var(--surface);
+  color: var(--ink);
+  border: 2px solid var(--focus);
+  border-radius: var(--radius-small);
+}
+.skip-link:focus { top: var(--space-4); }
+
+/* --- Buttons ------------------------------------------------------------ */
+
+.btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-2);
+  min-height: var(--tap);
+  min-width: var(--tap);
+  padding: var(--space-2) var(--space-4);
+  font: 600 1rem/1.2 var(--font-body);
+  border-radius: var(--radius-small);
+  border: 2px solid transparent;
+  cursor: pointer;
+  text-decoration: none;
+  transition: background-color var(--ease), border-color var(--ease);
+}
+.btn:disabled { cursor: not-allowed; opacity: 0.6; }
+.btn svg { flex: none; }  /* never squeeze an icon to nothing in a tight row */
+.btn-primary { background: var(--primary); color: #ffffff; }
+.btn-primary:hover:not(:disabled) { background: var(--primary-hover); }
+.btn-secondary { background: var(--surface); color: var(--ink); border-color: var(--control-border); }
+.btn-secondary:hover:not(:disabled) { border-color: var(--ink); }
+.btn-large { min-height: 56px; padding: var(--space-3) var(--space-6); font-size: 1.125rem; }
+.btn-block { width: 100%; }
+
+/* --- Header ----------------------------------------------------------------- */
+
+.site-header {
+  position: sticky;
+  top: 0;
+  z-index: 5;
+  background: var(--surface);
+  border-bottom: 1px solid var(--divider);
+}
+.site-header-inner {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-4);
+  max-width: 72rem;
+  margin: 0 auto;
+  padding: var(--space-3) var(--space-4);
+}
+.brand {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  min-height: var(--tap);
+  font: 700 1.375rem/1 var(--font-heading);
+  color: var(--ink);
+  text-decoration: none;
+}
+.brand svg { flex: none; }
+.cart-count {
+  display: inline-grid;
+  place-items: center;
+  min-width: 1.75rem;
+  height: 1.75rem;
+  padding: 0 var(--space-2);
+  border-radius: 999px;
+  background: #ffffff;
+  color: var(--primary-hover);
+  font-weight: 700;
+}
+
+main { max-width: 72rem; margin: 0 auto; padding: var(--space-6) var(--space-4) var(--space-8); }
+.page-intro { display: grid; gap: var(--space-2); margin-bottom: var(--space-6); }
+.page-intro p { color: var(--text-muted); }
+
+/* --- Catalog ---------------------------------------------------------------- */
+
+.category { margin-bottom: var(--space-8); }
+.category h2 { margin-bottom: var(--space-4); }
+.product-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(13rem, 1fr));
+  gap: var(--space-4);
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+.product-card {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  background: var(--surface);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow);
+  overflow: hidden;
+}
+.product-photo {
+  aspect-ratio: 1;
+  width: 100%;
+  object-fit: contain;
+  background: #ffffff;
+  padding: var(--space-3);
+  border-bottom: 1px solid var(--divider);
+}
+.product-body { display: flex; flex-direction: column; gap: var(--space-1); flex: 1; padding: var(--space-4); }
+.product-brand { color: var(--text-muted); font-size: 0.9375rem; }
+.product-size { color: var(--text-muted); font-size: 0.9375rem; }
+.product-footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-2);
+  margin-top: auto;
+  padding-top: var(--space-3);
+}
+.price { font: 700 1.25rem/1 var(--font-heading); color: var(--ink); }
+.in-cart-note { color: var(--ok); font-weight: 600; font-size: 0.9375rem; }
+
+/* --- Cart drawer (native <dialog>: focus trap and Escape come for free) ------ */
+
+.cart-dialog {
+  margin: 0 0 0 auto;
+  width: min(28rem, 100vw);
+  height: 100vh;
+  max-height: 100vh;
+  padding: 0;
+  border: none;
+  background: var(--surface);
+  color: var(--text);
+  box-shadow: -8px 0 24px rgb(15 23 42 / 0.15);
+}
+.cart-dialog::backdrop { background: rgb(15 23 42 / 0.45); }
+.drawer { display: flex; flex-direction: column; height: 100%; }
+.drawer-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: var(--space-4);
+  border-bottom: 1px solid var(--divider);
+}
+.drawer-body { flex: 1; overflow-y: auto; padding: var(--space-4); }
+.drawer-footer { display: grid; gap: var(--space-3); padding: var(--space-4); border-top: 1px solid var(--divider); }
+
+.cart-lines { list-style: none; margin: 0; padding: 0; display: grid; gap: var(--space-4); }
+.cart-line { display: grid; grid-template-columns: 4rem 1fr; gap: var(--space-3); align-items: start; }
+.cart-line img { width: 4rem; height: 4rem; object-fit: contain; border-radius: var(--radius-small); border: 1px solid var(--divider); }
+.stepper { display: flex; align-items: center; gap: var(--space-2); margin-top: var(--space-2); }
+.stepper .quantity { min-width: 2ch; text-align: center; font-weight: 700; }
+
+/* --- Checkout and receipt ------------------------------------------------- */
+
+.panel { background: var(--surface); border-radius: var(--radius); box-shadow: var(--shadow); padding: var(--space-6); }
+.checkout-layout { display: grid; gap: var(--space-6); grid-template-columns: minmax(0, 1fr); }
+@media (min-width: 900px) { .checkout-layout { grid-template-columns: minmax(0, 3fr) minmax(0, 2fr); } }
+
+.summary { width: 100%; border-collapse: collapse; }
+.summary th, .summary td { padding: var(--space-2) 0; text-align: left; vertical-align: top; }
+.summary td.amount, .summary th.amount { text-align: right; white-space: nowrap; }
+.summary tbody tr + tr { border-top: 1px solid var(--divider); }
+.summary tfoot th, .summary tfoot td { padding-top: var(--space-2); }
+.summary tfoot tr.total th, .summary tfoot tr.total td {
+  border-top: 2px solid var(--ink);
+  font: 700 1.25rem/1.3 var(--font-heading);
+  color: var(--ink);
+  padding-top: var(--space-3);
+}
+.note { color: var(--text-muted); font-size: 0.9375rem; }
+.message-error { color: var(--error); font-weight: 600; }
+.message-ok { color: var(--ok); font-weight: 600; }
+.stack { display: grid; gap: var(--space-4); align-content: start; }  /* no stretched rows in tall panels */
+.status-banner {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  padding: var(--space-4);
+  border-radius: var(--radius-small);
+  border: 2px solid var(--ok);
+  background: #ffffff;
+  color: var(--ok);
+  font-weight: 700;
+}
+.mono { font-family: ui-monospace, "Cascadia Mono", Consolas, monospace; font-size: 0.9375rem; word-break: break-all; }
+
+/* --- Issuer widget: the bank's surface ------------------------------------ */
+
+.bank-dialog {
+  width: min(30rem, calc(100vw - 2rem));
+  padding: 0;
+  border: none;
+  border-radius: var(--radius);
+  background: var(--bank-bg);
+  color: var(--bank-text);
+  box-shadow: 0 24px 48px rgb(11 37 69 / 0.45);
+}
+.bank-dialog::backdrop { background: rgb(15 23 42 / 0.6); }
+.bank-dialog :focus-visible { outline-color: var(--bank-accent); }
+.bank-dialog h2, .bank-dialog h3 { color: var(--bank-text); }
+.bank-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+  padding: var(--space-4) var(--space-6);
+  border-bottom: 1px solid var(--bank-border);
+}
+.bank-mark { display: inline-flex; align-items: center; gap: var(--space-2); font: 700 1.125rem/1 var(--font-heading); }
+.bank-body { display: grid; gap: var(--space-4); padding: var(--space-6); }
+.bank-muted { color: var(--bank-muted); }
+.bank-amount { font: 700 2rem/1.1 var(--font-heading); }
+.bank-card-list { display: grid; gap: var(--space-2); border: none; margin: 0; padding: 0; }
+.bank-card-list legend { margin-bottom: var(--space-2); font-weight: 700; }
+.bank-card-option {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  min-height: 56px;
+  padding: var(--space-3) var(--space-4);
+  border: 2px solid var(--bank-border);
+  border-radius: var(--radius-small);
+  background: var(--bank-panel);
+  cursor: pointer;
+}
+.bank-card-option:has(input:checked) { border-color: var(--bank-accent); }
+.bank-card-option input { width: 1.25rem; height: 1.25rem; accent-color: var(--bank-accent); }
+.btn-bank { background: var(--bank-accent); color: var(--bank-bg); }
+.btn-bank:hover:not(:disabled) { background: #f7d67f; }       /* --bank-bg on it: 10.9:1 */
+.btn-bank-quiet { background: transparent; color: var(--bank-text); border-color: var(--bank-border); }
+.bank-error { color: var(--bank-error); font-weight: 600; }
+.bank-ok { color: var(--bank-ok); font-weight: 700; }
+.bank-warning {
+  padding: var(--space-4);
+  border: 2px solid var(--bank-accent);
+  border-radius: var(--radius-small);
+  background: var(--bank-panel);
+}
+.bank-steps { margin: 0; padding-left: 1.5rem; display: grid; gap: var(--space-2); }
+.bank-steps li[aria-current="step"] { font-weight: 700; }
+.bank-steps svg, .bank-scores svg { color: var(--bank-ok); vertical-align: -3px; }
+.bank-scores { list-style: none; margin: 0; padding: 0; display: grid; gap: var(--space-2); }
+.bank-stub-note {
+  padding: var(--space-3);
+  border: 1px dashed var(--bank-border);
+  border-radius: var(--radius-small);
+  color: var(--bank-muted);
+  font-size: 0.9375rem;
+}
+
+/* --- Bank app pages (enrollment): full-page bank surface ------------------- */
+
+.bank-page { min-height: 100vh; background: var(--bank-bg); color: var(--bank-text); }
+.bank-page h1, .bank-page h2 { color: var(--bank-text); }
+.bank-page :focus-visible { outline-color: var(--bank-accent); }
+.bank-page-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-4);
+  max-width: 44rem;
+  margin: 0 auto;
+  padding: var(--space-4);
+  border-bottom: 1px solid var(--bank-border);
+}
+.bank-page-main { max-width: 44rem; margin: 0 auto; padding: var(--space-6) var(--space-4) var(--space-8); }
+.bank-link { color: var(--bank-text); min-height: var(--tap); display: inline-flex; align-items: center; }
+.bank-card {
+  padding: var(--space-6);
+  border: 1px solid var(--bank-border);
+  border-radius: var(--radius);
+  background: var(--bank-panel);
+}
+.bank-signin { list-style: none; margin: 0; padding: 0; display: grid; gap: var(--space-3); }
+.bank-sound-list { list-style: none; margin: 0; padding: 0; display: grid; gap: var(--space-2); }
+.bank-sound-list li { display: flex; align-items: center; justify-content: space-between; gap: var(--space-3); flex-wrap: wrap; }
+.bank-sound-list svg { color: var(--bank-ok); vertical-align: -3px; }
+.bank-status { color: var(--bank-text); font-weight: 600; }
+.bank-input {
+  min-height: 52px;
+  padding: var(--space-2) var(--space-3);
+  font: inherit;
+  color: var(--bank-bg);
+  background: #ffffff;
+  border: 2px solid var(--bank-border);
+  border-radius: var(--radius-small);
+}
+.bank-meter { height: 12px; border-radius: 999px; background: var(--bank-bg); overflow: hidden; border: 1px solid var(--bank-border); }
+.bank-meter-fill { height: 100%; background: var(--bank-accent); transform: scaleX(0); transform-origin: left; }
+.bank-timer { font: 700 1.5rem/1 var(--font-heading); font-variant-numeric: tabular-nums; }
+.btn-record { min-height: 72px; font-size: 1.25rem; width: 100%; }
+/* Recording state is carried by the text ("Stop recording"), not color alone. */
+.btn-record.is-recording { background: #ffffff; color: var(--bank-bg); border-color: var(--bank-accent); }
+.btn[aria-disabled="true"] { cursor: progress; opacity: 0.75; }
+
+.bank-body p svg, .status-banner svg { flex: none; vertical-align: -4px; }
+.bank-muted svg { margin-right: var(--space-1); }
+
+.site-footer { max-width: 72rem; margin: 0 auto; padding: 0 var(--space-4) var(--space-8); }
+a { color: var(--ink); text-underline-offset: 3px; }
+a:hover { text-decoration-thickness: 2px; }
+pre.mono {
+  margin: 0;
+  padding: var(--space-4);
+  background: var(--bg);
+  border: 1px solid var(--control-border);
+  border-radius: var(--radius-small);
+  white-space: pre-wrap;
+}
+
+@media (max-width: 480px) {
+  h1 { font-size: 1.625rem; }
+  /* rem is 18px here, so 8.5rem (153px) fits two columns in a 375px viewport */
+  .product-grid { grid-template-columns: repeat(auto-fill, minmax(8.5rem, 1fr)); gap: var(--space-3); }
+  .product-body { padding: var(--space-3); }
+  .product-footer { flex-wrap: wrap; }
+  .brand { font-size: 1.125rem; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { animation: none !important; transition: none !important; }
+}
+
+/* Merchant voice shopping keeps repair choices reachable by keyboard/touch. */
+.voice-shopping { margin-block: 2rem; padding: 1.5rem; border: 1px solid currentColor; border-radius: 1rem; }
+.voice-shopping form { max-width: 32rem; }
+.voice-shopping input { min-height: 44px; width: 100%; padding: .6rem; font: inherit; }
+.voice-shopping-actions { display: flex; flex-wrap: wrap; gap: .75rem; }
+
+/* Baseline comparison page (demo only) */
+.table-scroll { overflow-x: auto; }
+.baseline-table th, .baseline-table td { padding: var(--space-2) var(--space-3); vertical-align: top; }
+.baseline-examples { list-style: none; margin: 0; padding: 0; display: grid; gap: var(--space-4); }
+.baseline-verdicts { display: grid; gap: var(--space-4); grid-template-columns: repeat(auto-fit, minmax(14rem, 1fr)); }
+.baseline audio { width: 100%; min-height: var(--tap); }
+.baseline details summary { min-height: var(--tap); display: flex; align-items: center; cursor: pointer; font-weight: 600; }
+
+/* Adaptation dashboard (demo only). Lines differ by dash and marker shape, not only color. */
+.drift-chart { width: 100%; height: auto; max-width: 44rem; }
+.drift-grid { stroke: var(--divider); stroke-width: 1; }
+.drift-axis { fill: var(--text-muted); font-size: 13px; }
+.drift-line { fill: none; stroke-width: 3; }
+.drift-adaptive, .drift-adaptive-mark { stroke: var(--primary); }
+.drift-adaptive-mark { fill: var(--primary); }
+.drift-static { stroke: var(--text-muted); stroke-dasharray: 8 6; }
+.drift-static-mark { fill: var(--surface); stroke: var(--text-muted); stroke-width: 2; }
+.drift-legend { list-style: none; margin: 0; padding: 0; display: flex; flex-wrap: wrap; gap: var(--space-4); }
+.drift-legend li { display: inline-flex; align-items: center; gap: var(--space-2); }
+.drift-filter { border: none; margin: 0; padding: 0; display: flex; flex-wrap: wrap; gap: var(--space-4); }
+.drift-filter legend { font-weight: 600; margin-bottom: var(--space-2); }
+.drift-filter label { min-height: var(--tap); display: inline-flex; align-items: center; gap: var(--space-2); }
+.drift-filter input { width: 20px; height: 20px; }

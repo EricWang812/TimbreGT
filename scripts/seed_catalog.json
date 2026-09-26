@@ -1,0 +1,20 @@
+[
+  {"id": "wild-planet-albacore", "barcode": "0829696000534", "name": "Albacore Tuna", "brand": "Wild Planet", "size": "5 oz", "category": "seafood", "price_cents": 449},
+  {"id": "kirkland-red-shrimp", "barcode": "0196633980830", "name": "Wild Argentine Red Shrimp", "brand": "Kirkland Signature", "size": "2 lb", "category": "seafood", "price_cents": 2199},
+  {"id": "dole-organic-bananas", "barcode": "0643126971962", "name": "Organic Bananas", "brand": "Dole", "size": "3 lb", "category": "produce", "price_cents": 299},
+  {"id": "daves-21-grains", "barcode": "0013764027053", "name": "21 Whole Grains and Seeds Bread", "brand": "Dave's Killer Bread", "size": "27 oz", "category": "bakery", "price_cents": 699},
+  {"id": "cabot-seriously-sharp", "barcode": "0078354708439", "name": "Seriously Sharp Cheddar", "brand": "Cabot Creamery", "size": "8 oz", "category": "dairy", "price_cents": 429},
+  {"id": "chobani-nonfat-plain", "barcode": "0894700010137", "name": "Greek Yogurt, Nonfat Plain", "brand": "Chobani", "size": "32 oz", "category": "dairy", "price_cents": 649},
+  {"id": "fage-total-0", "barcode": "0689544083016", "name": "Total 0% Greek Yogurt", "brand": "Fage", "size": "32 oz", "category": "dairy", "price_cents": 749},
+  {"id": "simply-orange", "barcode": "0025000100000", "name": "Pulp Free Orange Juice", "brand": "Simply Orange", "size": "52 fl oz", "category": "drinks", "price_cents": 549},
+  {"id": "san-pellegrino", "barcode": "0041508800129", "name": "Sparkling Natural Mineral Water", "brand": "S.Pellegrino", "size": "750 ml", "category": "drinks", "price_cents": 249},
+  {"id": "cafe-bustelo", "barcode": "0074471000500", "name": "Espresso Ground Coffee", "brand": "Café Bustelo", "size": "10 oz", "category": "drinks", "price_cents": 599},
+  {"id": "jif-creamy", "barcode": "0051500255162", "name": "Creamy Peanut Butter", "brand": "Jif", "size": "16 oz", "category": "pantry", "price_cents": 349},
+  {"id": "quaker-old-fashioned", "barcode": "0030000010402", "name": "Old Fashioned Oats", "brand": "Quaker", "size": "42 oz", "category": "pantry", "price_cents": 649},
+  {"id": "huy-fong-sriracha", "barcode": "0024463061095", "name": "Sriracha Hot Chili Sauce", "brand": "Huy Fong Foods", "size": "17 oz", "category": "pantry", "price_cents": 499},
+  {"id": "tajin-reduced-sodium", "barcode": "0633148100624", "name": "Clásico Seasoning, Reduced Sodium", "brand": "Tajín", "size": "5 oz", "category": "pantry", "price_cents": 349},
+  {"id": "terra-delyssa-evoo", "barcode": "6191509900671", "name": "Extra Virgin Olive Oil", "brand": "Terra Delyssa", "size": "750 ml", "category": "pantry", "price_cents": 1199},
+  {"id": "gogo-squeez-apple", "barcode": "0890000001004", "name": "AppleApple Fruit Pouch", "brand": "GoGo SqueeZ", "size": "3.2 oz", "category": "snacks", "price_cents": 149},
+  {"id": "simple-mills-cheddar", "barcode": "0856069005155", "name": "Almond Flour Crackers, Farmhouse Cheddar", "brand": "Simple Mills", "size": "4.25 oz", "category": "snacks", "price_cents": 499},
+  {"id": "pirates-booty", "barcode": "0015665601004", "name": "Aged White Cheddar Puffs", "brand": "Pirate's Booty", "size": "4 oz", "category": "snacks", "price_cents": 399}
+]
