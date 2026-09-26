@@ -157,6 +157,40 @@ p { margin: 0; }
 .route-enter { transition: opacity var(--dur-fast) var(--ease-out); }
 @starting-style { .route-enter { opacity: 0; } }
 
+/* Market branding stays inside this card. The owner color is a decorative
+   accent only, so arbitrary valid colors cannot reduce text contrast. */
+.market-storefront-brand {
+  display: flex;
+  align-items: center;
+  gap: var(--space-6);
+  max-width: 760px;
+  margin: var(--space-8) auto;
+  padding: var(--space-8);
+  background: var(--surface);
+  border: 1px solid var(--divider);
+  border-top: 8px solid var(--market-primary);
+  border-radius: var(--radius-card);
+  box-shadow: var(--shadow);
+}
+.market-storefront-logo {
+  display: grid;
+  place-items: center;
+  flex: 0 0 96px;
+  width: 96px;
+  height: 96px;
+  overflow: hidden;
+  border: 3px solid var(--market-primary);
+  border-radius: 50%;
+  background: var(--skeleton);
+  color: var(--ink);
+  font: 700 1.75rem/1 var(--font-heading);
+}
+.market-storefront-logo img { width: 100%; height: 100%; object-fit: contain; background: var(--surface); }
+@media (max-width: 600px) {
+  .market-storefront-brand { align-items: flex-start; margin: var(--space-4); padding: var(--space-6); }
+  .market-storefront-logo { flex-basis: 72px; width: 72px; height: 72px; font-size: 1.35rem; }
+}
+
 /* --- Header ----------------------------------------------------------------- */
 
 .site-header {

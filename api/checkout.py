@@ -21,6 +21,7 @@ from api import issuer_client
 from api.cart import CartError, price_cart
 from api.config import FREE_SHIPPING_MIN_CENTS, MAX_CART_LINES, MAX_QUANTITY, MERCHANT_ID
 from api.db import fetch_one, transaction
+from api.market_orders import materialize_market_order
 
 log = logging.getLogger(__name__)
 router = APIRouter()
@@ -86,7 +87,12 @@ def confirm(body: CartRequest) -> dict:
 @router.post("/checkout/complete", response_model=ApprovalResult)
 def complete(body: CompleteRequest) -> ApprovalResult:
     instruction_id = str(body.instruction_id)
-    if fetch_one("SELECT 1 FROM orders WHERE instruction_id = ?", (instruction_id,)) is None:
+    if (
+        fetch_one("SELECT 1 FROM orders WHERE instruction_id = ?", (instruction_id,)) is None
+        and fetch_one(
+            "SELECT 1 FROM market_checkout_sessions WHERE authorization_instruction_id = ?", (instruction_id,)
+        ) is None
+    ):
         raise HTTPException(404, "unknown order")
     try:
         result = issuer_client.approve(instruction_id)
@@ -103,6 +109,7 @@ def complete(body: CompleteRequest) -> ApprovalResult:
                 " WHERE instruction_id = ? AND status = 'pending'",
                 (result["transaction_id"], instruction_id),
             )
+            materialize_market_order(conn, instruction_id, result["transaction_id"])
     return ApprovalResult(verified=result["verified"], transaction_id=result["transaction_id"])
 
 

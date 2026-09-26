@@ -40,6 +40,420 @@
 
 **Header voice launcher and Whisper fallback (2026-09-26; 194 tests pass):** The header `Shop by voice` button now starts the additive agentic recorder instead of only focusing the legacy panel. It navigates to the shop when needed, scrolls to the agentic panel, focuses its microphone control, and starts recording. If the agentic panel is not mounted, it starts the unchanged Whisper recorder. If an agentic stage returns 503 after recording, the same WAV is handed to `VoiceShopping`, which runs the existing `/shopping/voice` Whisper path and keeps its normal confirmation-before-add UI, so the shopper does not repeat the request. An active recorder or clarification is focused rather than toggled or competing with a second recording.
 
+## Multi-Market Implementation Progress
+
+### Feature 1: Market Owner Authentication
+
+**Status:** Implemented on 2026-09-26.
+
+**Changes:** Added merchant-side market-owner account registration, login, logout, current-session lookup, and a reusable `current_market_owner` FastAPI dependency for future protected market routes. The issuer/cardholder identity system remains separate and unchanged. Registration creates only an account, never a market, so this feature cannot create anonymous or orphan markets.
+
+**Files added:** `api/market_auth.py`, `tests/test_market_auth.py`.
+
+**Files modified:** `api/db.py`, `api/config.py`, `api/main.py`, `.env.example`, `AGENTS.md`, `docs/CHANGELOG.md`.
+
+**Database/schema:** Added `accounts` with case-insensitive unique email, salted scrypt password hash, role, and creation time. Added `market_sessions` with only a SHA-256 token digest, owner foreign key with cascade deletion, creation time, expiry, and an owner lookup index. The schema reserves `BUYER` as a future role, but buyer registration and login are not implemented.
+
+**Routes:** `POST /market-auth/register`, `POST /market-auth/login`, `POST /market-auth/logout`, and `GET /market-auth/me`. Registration and login set a random HttpOnly, SameSite=Lax session cookie. Logout revokes its server-side session. Missing, invalid, expired, or non-market-owner sessions receive 401. Duplicate emails receive 409, malformed emails and passwords shorter than 12 characters receive 422, and login failures use one generic error.
+
+**Authorization/security:** Future market-management routes can require the exported `current_market_owner` dependency, which resolves the authenticated account server-side and enforces the `MARKET_OWNER` role. Raw session tokens and plaintext passwords are never stored. `MARKET_SESSION_TTL_SECONDS` defaults to 12 hours. `MARKET_SESSION_COOKIE_SECURE` defaults to false for the local HTTP demo and must be true behind production HTTPS. Credentialed CORS remains restricted to the configured Timbre web origin. This account authenticates marketplace administration only and does not replace or bypass Timbre purchase authorization.
+
+**Verification:** `.venv/bin/python -m pip install -r requirements.txt` and `pip check` pass with no new dependency. The 40-test focused authentication, health, CORS, and merchant/issuer boundary run passes. All 7 issuer import guards pass in isolation. The complete suite reports 199 passed and 2 process-order-dependent SIGABRT failures in pre-existing fresh-interpreter issuer import guards on this macOS runtime; both failing guards pass together in their isolated file. `npm run build` passes with 66 modules. `git diff --check` passes.
+
+**Known limitations:** No market-owner login UI, password reset, email verification, rate limiting, or account administration exists yet. Cookies require the secure flag to be enabled for production HTTPS.
+
+### Feature 2: Market Creation
+
+**Status:** Implemented on 2026-09-26.
+
+**Changes:** Added authenticated creation of persistent markets. The request accepts only a required market name. The server derives the owner relationship from the authenticated Feature 1 session and returns the created market with its generated ID, normalized name, owner account ID, and creation time.
+
+**Files added:** `api/markets.py`, `tests/test_markets.py`.
+
+**Files modified:** `api/db.py`, `api/main.py`, `AGENTS.md`, `docs/CHANGELOG.md`.
+
+**Database/schema:** Added `markets` with required ID, nonblank name, required `owner_account_id` foreign key, and creation time, plus an owner lookup index. Owner deletion is restricted while a market references it. A database trigger rejects missing accounts and accounts whose role is not `MARKET_OWNER`, so the ownership invariant also holds outside the route.
+
+**Routes:** Added `POST /markets`. It requires the existing market-owner session dependency. The request schema forbids extra fields, including a client-supplied owner ID. Names are trimmed and internal whitespace is normalized; blank names receive 422. Successful creation returns 201.
+
+**Authorization/security:** Anonymous requests receive 401 and write nothing. The authenticated account is always persisted as the owner. A caller cannot create a market for another owner by supplying an account ID. This authentication remains separate from issuer/cardholder identity and Timbre purchase authorization.
+
+**Verification:** Reinstalled all pinned requirements and ran `pip check` with no missing or broken packages. The focused market, authentication, health, CORS, and boundary run passes all 47 tests. It covers creation, persistence, owner assignment, anonymous rejection, owner spoofing rejection, invalid names, buyer-role rejection, and missing-account rejection. All 7 issuer import guards pass in isolation. The complete suite reports 206 passed and the same 2 process-order-dependent SIGABRT failures in pre-existing fresh-interpreter issuer guards on this macOS runtime; both pass in isolation. The 66-module frontend production build and `git diff --check` pass.
+
+**Known limitations:** There is no market creation UI or market listing endpoint yet. Product, fulfillment, order, and agent integration features remain unimplemented.
+
+### Feature 3: Market Branding
+
+**Status:** Implemented on 2026-09-26.
+
+**Changes:** Markets now have a required name, a customizable six-digit hex primary color, and an optional logo reference. Added an owner-only branding update endpoint, a public branding read endpoint, and a public `#/markets/{marketId}` view. The view displays the configured logo or generated one-to-two-letter initials when no logo exists. The market color is confined to a decorative card border and logo border, so it neither changes global Timbre styles nor controls text contrast.
+
+**Files added:** `web/src/pages/MarketStorefront.jsx`.
+
+**Files modified:** `api/db.py`, `api/main.py`, `api/markets.py`, `tests/test_markets.py`, `web/src/App.jsx`, `web/src/components/PageHeading.jsx`, `web/src/lib/api.js`, `web/src/lib/router.js`, `web/src/styles.css`, `AGENTS.md`, `docs/CHANGELOG.md`.
+
+**Database/schema:** Added `primary_color` with default `#126B5B` and nullable `logo_url` to `markets`. `init_db()` performs additive `ALTER TABLE` migration when opening a database created by Feature 2, preserving existing market rows and applying the default color.
+
+**Routes/UI:** Added public `GET /markets/{market_id}` and owner-only `PATCH /markets/{market_id}/branding`. The patch accepts any combination of `name`, `primaryColor`, and `logoUrl`, requires at least one supplied field, and permits `logoUrl: null` to restore the initials placeholder. Public responses omit `ownerAccountId`. The hash route `#/markets/{marketId}` loads and displays the scoped branding, handles loading and missing-market errors, and sets the page title to the market name.
+
+**Image handling and validation:** No upload/storage dependency existed, so branding follows the catalog's existing URL-reference approach and stores no image bytes. Logo references must be HTTPS URLs or root-relative static paths; HTTP, protocol-relative, JavaScript, data, and malformed values are rejected. Theme colors must be exact six-digit hex values and are normalized to uppercase. Market names remain required and normalized.
+
+**Authorization/security:** Only the authenticated owner can change a market. The update matches both market ID and authenticated `owner_account_id` in one SQL statement; another owner receives 404 and cannot infer a private management distinction. Public branding exposes storefront fields only, not owner account IDs. PATCH was added to the existing origin-restricted credentialed CORS policy.
+
+**Verification:** Reinstalled all pinned requirements and ran `pip check` successfully; no package was added. The focused market, authentication, health, CORS, and boundary run passes all 60 tests, including ownership, validation, logo clearing, public-field privacy, placeholder generation, and migration of a Feature 2 database. The complete suite reports 219 passed and the same 2 process-order-dependent SIGABRT failures in pre-existing fresh-interpreter issuer guards on this macOS runtime; all 7 guards pass in isolation. The 67-module frontend production build, Python compilation, and `git diff --check` pass.
+
+**Known limitations:** Market owners configure branding through the API because an owner administration UI is not built yet. Logo upload is not implemented; owners reference an existing HTTPS image or a static asset path. The storefront branding page does not list products yet.
+
+### Feature 4: Product Creation
+
+**Status:** Implemented on 2026-09-26.
+
+**Changes:** Added authenticated product creation for a market owned by the current account. A request supplies only required `name` and numeric `price`, plus optional `photoUrl`. Names are normalized, prices permit zero but never negative values, accept at most two decimal places, and are persisted as exact integer cents. The response includes generated product ID, market ID, normalized name, decimal price, integer cents, optional photo URL, and creation time.
+
+**Files added:** `api/market_products.py`, `tests/test_market_products.py`.
+
+**Files modified:** `api/db.py`, `api/main.py`, `AGENTS.md`, `docs/CHANGELOG.md`.
+
+**Database/schema:** Added `market_products` with required ID, required market foreign key, nonblank name, nonnegative integer `price_cents`, optional `photo_url`, and creation time, plus a market lookup index. Market deletion is restricted while products reference it.
+
+**Legacy catalog decision:** The existing `products` table remains the read-only seeded Seaside demo catalog used by the working cart and voice-shopping paths. It requires brand, size, category, image, and image-credit values that Feature 4 does not require. Rather than fabricate data or destructively rebuild that table, seller-created products use the additive `market_products` table. A later storefront/commerce adapter can combine the sources when those features are implemented.
+
+**Routes:** Added owner-authenticated `POST /markets/{market_id}/products`. The market comes only from the path, and extra request fields such as a client-supplied `marketId` are rejected. The route verifies `market.id` and `market.owner_account_id` together inside the insertion transaction, then returns 201. Missing markets and markets owned by another account return 404 without writing.
+
+**Image handling and validation:** Product photos follow the existing URL-reference convention and remain optional. Accepted references are HTTPS URLs or root-relative static paths. Empty strings become no photo. HTTP, protocol-relative, JavaScript, data, and malformed references are rejected. No image bytes or new storage dependency were added.
+
+**Authorization/security:** Anonymous requests receive 401. An authenticated owner can add a product only to a market they own. The backend never trusts a client-provided ownership relationship, and a failed authorization or validation leaves all market products unchanged. Issuer identity, Timbre purchase authentication, the legacy catalog, cart, checkout, and payment paths remain unchanged.
+
+**Verification:** Reinstalled all pinned requirements and ran `pip check`; no dependency was added. The focused product, market, authentication, health, CORS, and boundary run passes all 77 tests. It covers persistence, exact cents, optional photos, zero price, static and HTTPS photos, anonymous rejection, cross-owner rejection, missing markets, required fields, negative and over-precision prices, nonnumeric and boolean prices, unsafe photo references, and market-ID spoofing. The complete suite reports 236 passed and the same 2 process-order-dependent SIGABRT failures in pre-existing fresh-interpreter issuer guards on this macOS runtime; all 7 guards pass in isolation. The 67-module frontend build, Python compilation, and `git diff --check` pass.
+
+**Known limitations:** Product management is API-only and products do not appear in the storefront yet. Seller products are not yet consumed by the existing cart or commerce agent.
+
+### Feature 5: Product Editing and Removal
+
+**Status:** Implemented on 2026-09-26.
+
+**Changes:** Added authenticated owner product listing, partial editing, and removal. Owners can list products in one of their markets, update any combination of name, price, and photo reference, clear a photo with `null`, and delete a product. The product ID, market ID, and creation time remain stable through edits. Removal is permanent within this feature's explicitly requested scope.
+
+**Files modified:** `api/main.py`, `api/market_products.py`, `tests/test_market_products.py`, `AGENTS.md`, `docs/CHANGELOG.md`.
+
+**Routes:** Added owner-only `GET /markets/{market_id}/products`, `PATCH /markets/{market_id}/products/{product_id}`, and `DELETE /markets/{market_id}/products/{product_id}`. PATCH requires at least one supported field and reuses Feature 4 name, price, and photo validation. DELETE returns 204; a repeated or unknown deletion returns 404.
+
+**Authorization/security:** Every operation first verifies that the authenticated account owns the path market, then constrains the product mutation or deletion by both product ID and market ID. Another owner cannot list, edit, or delete products from a different market, even when supplying its exact IDs. Anonymous requests receive 401. Invalid edits, wrong-market IDs, unauthorized attempts, and repeat deletes do not alter any product.
+
+**Verification:** Reinstalled all pinned requirements and ran `pip check`; no dependency was added. The focused product, market, authentication, health, CORS, and boundary run passes all 91 tests. It covers owner listing, all-field edits, photo clearing, invalid-edit preservation, cross-owner list/edit/delete rejection, deletion, repeat deletion, and anonymous management rejection. The complete suite reports 250 passed and the same 2 process-order-dependent SIGABRT failures in pre-existing fresh-interpreter issuer guards on this macOS runtime; all 7 guards pass in isolation. The 67-module frontend build, Python compilation, and `git diff --check` pass.
+
+**Known limitations:** Product management has no owner UI or public storefront listing yet. Seller products remain separate from the seeded catalog and are not yet consumed by cart or agent paths.
+
+### Feature 6: Product Quantity and Unit Support
+
+**Status:** Implemented on 2026-09-26.
+
+**Changes:** Market products can now optionally carry a measured quantity and canonical unit. Both fields are required together when either is supplied, while ordinary individually sold products can remain unmeasured. Supported units are weight (`mg`, `g`, `kg`, `oz`, `lb`), volume (`mL`, `L`, `fl oz`, `gal`), and `count`. Quantity is numeric, positive, and stored separately from the display unit. Creation accepts a complete measurement; editing can add, change, or clear both fields, and can change just one value when the product already has a valid matching value.
+
+**Files modified:** `api/db.py`, `api/market_products.py`, `tests/test_market_products.py`, `AGENTS.md`, `docs/CHANGELOG.md`.
+
+**Database/schema:** Added nullable `quantity_value` and `quantity_unit` columns to `market_products`, a complete-pair and positive-value constraint for new databases, and insert/update triggers for the same invariant. `init_db()` additively migrates Feature 4/5 databases before installing the triggers, leaving their existing product rows unmeasured and valid.
+
+**Routes:** Existing owner-only product create, list, and PATCH routes now include `quantity` and `unit` in their product response and accept the fields in create/PATCH bodies. The route validates the pair before writing. An incomplete pair, nonnumeric or nonpositive quantity, or a noncanonical unit returns 422 without changing the product.
+
+**Authorization/security:** Measurement changes retain the existing owner-to-market-to-product backend ownership checks. Database constraints and triggers preserve the quantity invariant even outside the API. This feature adds no path to the legacy seeded catalog, cart, commerce agent, checkout, or purchase authorization flow.
+
+**Verification:** Reinstalled all pinned requirements and ran `pip check`; no dependency was added. The focused product and market run passes all 73 tests, including valid weight, volume, and count storage, unmeasured products, create and update pair validation, clearing, Feature 5 database migration, and direct database invariant enforcement. The complete suite reports 272 passed and the same 2 process-order-dependent SIGABRT failures in pre-existing fresh-interpreter issuer guards on this macOS runtime; all 7 guards pass in isolation. The 67-module frontend build, Python compilation, and `git diff --check` pass.
+
+**Known limitations:** Units are stored and validated but are not yet converted or compared across dimensions. Product management remains API-only, and market products remain separate from the legacy catalog, cart, and agent paths.
+
+### Feature 7: Quantity Per Dollar
+
+**Status:** Implemented on 2026-09-26.
+
+**Changes:** Measured market-product responses now include a derived `quantityPerDollar` value, calculated as declared quantity divided by price in USD. It uses the product's existing `unit`, so `2 lb` at `$4` yields `0.5` in `lb/$`, and `750 mL` at `$3` yields `250` in `mL/$`. The value is calculated on every create, read, and update response, never accepted from a client or persisted in the database.
+
+**Files modified:** `api/market_products.py`, `tests/test_market_products.py`, `AGENTS.md`, `docs/CHANGELOG.md`.
+
+**Database/schema:** No schema changes. The calculation deliberately uses `quantity_value` and integer `price_cents` already stored by Feature 6, so it remains current after a price or quantity edit and cannot become stale.
+
+**Routes:** Existing owner-authenticated product create, list, and PATCH responses now include `quantityPerDollar`. It is `null` when a product has no measurement or its price is zero, avoiding an invalid division. The product's existing `unit` supplies the accompanying display dimension.
+
+**Authorization/security:** The value is server-derived from owner-protected product data. Clients cannot supply or overwrite it, and no catalog, cart, commerce, checkout, or purchase-authorization behavior changed.
+
+**Verification:** Reinstalled all pinned requirements and ran `pip check`; no dependency was added. The focused product and market run passes all 78 tests, including pound, milliliter, and count examples, zero-price and unmeasured null cases, list/PATCH recalculation, and confirmation that no derived database column exists. The complete suite reports 277 passed and the same 2 process-order-dependent SIGABRT failures in pre-existing fresh-interpreter issuer guards on this macOS runtime; all 7 guards pass in isolation. The 67-module frontend build, Python compilation, and `git diff --check` pass.
+
+**Known limitations:** Values remain expressed in the seller-entered unit alongside the normalized value. Incompatible dimensions are not compared. Product management remains API-only, and market products remain separate from the legacy catalog, cart, and agent paths.
+
+### Feature 8: Unit Normalization
+
+**Status:** Implemented on 2026-09-26.
+
+**Changes:** Added a pure market-unit normalization helper that converts weight to milligrams, volume to milliliters, and count to count. Product responses retain the seller-entered `quantity` and `unit`, and now also expose `normalizedQuantity`, `normalizedUnit`, `quantityDimension`, and `normalizedQuantityPerDollar`. This lets later catalog logic compare only quantities in the same physical dimension while preserving user-friendly display units.
+
+**Files added:** `api/market_units.py`.
+
+**Files modified:** `api/market_products.py`, `tests/test_market_products.py`, `AGENTS.md`, `docs/CHANGELOG.md`.
+
+**Database/schema:** No schema changes. Normalized values are derived at response time from the Feature 6 quantity fields and the Feature 7 integer-cent price, so no duplicate mutable quantity or pricing data is stored.
+
+**Routes:** Existing owner-authenticated product create, list, and PATCH responses include the new normalization fields. Unmeasured products return `null` for all normalized values. `mg`, `g`, `kg`, `oz`, and `lb` normalize only within the `weight` dimension; `mL`, `L`, `fl oz`, and `gal` only within `volume`; and `count` is its own `count` dimension.
+
+**Comparison safety:** The exported `units_are_compatible` helper returns true only for two units in the same dimension. It returns false for weight versus volume, count versus either measurement dimension, and absent units. No function converts or ranks incompatible values as though they were equivalent.
+
+**Authorization/security:** Normalized response values are server-derived and cannot be client-supplied or persisted independently. Existing product ownership checks and the separation from legacy cart, commerce, checkout, and purchase authorization paths remain unchanged.
+
+**Verification:** Reinstalled all pinned requirements and ran `pip check`; no dependency was added. The focused product and market run passes all 86 tests, including pound and gram weight conversions, liter and gallon volume conversions, count preservation, normalized per-dollar values, absent measurements, and incompatible-unit rejection. The complete suite reports 285 passed and the same 2 process-order-dependent SIGABRT failures in pre-existing fresh-interpreter issuer guards on this macOS runtime; all 7 guards pass in isolation. The 67-module frontend build, Python compilation, and `git diff --check` pass.
+
+**Known limitations:** Normalization is available to later catalog and commerce code, but this feature does not search, rank, or merge products. Product management remains API-only, and seller products remain separate from the legacy catalog, cart, and agent paths.
+
+### Feature 9: Buyer Login
+
+**Status:** Implemented on 2026-09-26.
+
+**Changes:** Added buyer registration, login, logout, current-session lookup, and an exported `current_buyer` dependency. Buyer accounts reuse the existing `accounts` and `market_sessions` tables, password hashing, expiry cleanup, and token-digest storage. They use a separate HttpOnly `timbre_buyer_session` cookie, so buyer logout does not revoke a simultaneous market-owner session in the same browser.
+
+**Files added:** `api/buyer_auth.py`, `tests/test_buyer_auth.py`.
+
+**Files modified:** `api/config.py`, `api/main.py`, `api/market_auth.py`, `AGENTS.md`, `docs/CHANGELOG.md`.
+
+**Database/schema:** No schema migration. Feature 1 already reserved the `BUYER` account role. The existing `accounts` table now has active buyer rows, while the existing session table continues to store only a SHA-256 digest, account ID, expiry, and creation timestamp.
+
+**Routes:** Added `POST /buyer-auth/register`, `POST /buyer-auth/login`, `POST /buyer-auth/logout`, and `GET /buyer-auth/me`. Registration and login issue the buyer session cookie. Inputs retain the existing normalized email and 12-to-128-character password rules. Duplicate email returns 409; invalid credentials return the same generic 401 response used by market-owner login.
+
+**Authorization/security:** Buyer login uses the same salted scrypt password hashes and 12-hour expiry setting as market-owner login, with a distinct cookie name. The shared role-aware server dependency checks the expected account role at query time. A buyer cannot access market-owner routes or create markets, and a market owner cannot use buyer routes. Buyer authentication remains a shopping-session identity only: it does not modify the existing Timbre voice/passkey purchase authorization or authorize payment.
+
+**Verification:** Reinstalled all pinned requirements and ran `pip check`; no dependency was added. The focused buyer, owner, market, and product run passes all 100 tests, including buyer registration, session cookies, login, logout, expiration, role isolation, separate owner and buyer cookie behavior, dependency protection, invalid input, and duplicate email handling. The complete suite reports 292 passed and the same 2 process-order-dependent SIGABRT failures in pre-existing fresh-interpreter issuer guards on this macOS runtime; all 7 guards pass in isolation. The 67-module frontend build, Python compilation, and `git diff --check` pass.
+
+**Known limitations:** Buyer login is API-only. Buyer profiles, order history, fulfillment selection, and checkout linkage are not implemented yet. The existing Timbre authorization remains separate by design.
+
+### Feature 10: Buyer Addresses
+
+**Status:** Implemented on 2026-09-26.
+
+**Changes:** Added private shipping-address creation and listing for authenticated buyers. An address includes recipient name, address line 1, optional address line 2, city, state or region, postal code, and country. Required fields are whitespace-normalized and nonblank; an omitted or blank second line is stored as `null`.
+
+**Files added:** `api/buyer_addresses.py`, `tests/test_buyer_addresses.py`.
+
+**Files modified:** `api/db.py`, `api/main.py`, `AGENTS.md`, `docs/CHANGELOG.md`.
+
+**Database/schema:** Added `buyer_addresses` with a required buyer-account foreign key, required shipping fields, nullable second line, creation timestamp, and buyer lookup index. A database trigger requires the linked account role to be `BUYER`, so an address cannot be inserted for a market owner through direct database access.
+
+**Routes:** Added buyer-authenticated `POST /buyer/addresses` and `GET /buyer/addresses`. The server derives the address owner solely from the buyer session, forbids client-supplied ownership fields, and returns only the current buyer's addresses. Browsing requires no address, and checkout does not yet consume one.
+
+**Authorization/security:** Addresses are private buyer data. Anonymous requests receive 401, another buyer receives an empty list rather than the first buyer's records, and address rows cannot be assigned to another account by request data. Existing market-owner authorization and Timbre voice/passkey purchase authorization remain separate and unchanged.
+
+**Verification:** Reinstalled all pinned requirements and ran `pip check`; no dependency was added. The focused address, buyer, owner, market, and product run passes all 113 tests, including persistence, normalization, optional line two, private list scoping, anonymous rejection, validation and no-write behavior, ownership spoofing rejection, and direct database buyer-role enforcement. The complete suite reports 305 passed and the same 2 process-order-dependent SIGABRT failures in pre-existing fresh-interpreter issuer guards on this macOS runtime; all 7 guards pass in isolation. The 67-module frontend build, Python compilation, and `git diff --check` pass.
+
+**Known limitations:** Addresses are API-only and cannot yet be edited or removed. Feature 13 now requires a saved address only when a buyer selects shipping, but the legacy checkout has no market mapping and therefore intentionally does not consume that selection yet. Market shipping configuration is implemented in Feature 12.
+
+### Feature 11: Market Pickup Settings
+
+**Status:** Implemented on 2026-09-26.
+
+**Changes:** Market owners can now save a real pickup address, enable pickup only when an address exists, disable pickup while retaining the saved address, and remove the address only after pickup is disabled. The address includes street line 1, optional line 2, city, state or region, postal code, and country. Owners may save the address and enable pickup in one atomic request.
+
+**Files modified:** `api/db.py`, `api/markets.py`, `tests/test_markets.py`, `AGENTS.md`, `docs/CHANGELOG.md`.
+
+**Database/schema:** Added nullable-by-relationship `market_pickup_addresses`, keyed one-to-one by market ID, plus a persisted `markets.pickup_enabled` flag. `init_db()` additively adds the flag for Feature 2 through Feature 10 databases. Database triggers reject enabling pickup without an address, creating a market with pickup enabled before an address can exist, and deleting an address while its market remains pickup-enabled.
+
+**Routes:** Added owner-only `GET /markets/{market_id}/pickup-settings` and `PATCH /markets/{market_id}/pickup-settings`. PATCH accepts `pickupEnabled` and/or `pickupAddress`; it returns 422 for no supplied setting, incomplete address data, enabling without an address, or removing the active address. These management routes are private; buyer-facing pickup display and fulfillment selection are deferred to Feature 13.
+
+**Authorization/security:** Every pickup settings read and write verifies the authenticated owner against the market ID before accessing the address. Other owners receive 404 and anonymous requests receive 401. The request cannot provide a market owner or market address relationship independently. Pickup settings do not alter buyer addresses, shipping, checkout, cart, orders, or Timbre purchase authorization.
+
+**Verification:** Reinstalled all pinned requirements and ran `pip check`; no dependency was added. The focused market, buyer, owner, product, and address run passes all 118 tests, including atomic save-and-enable, disabled address retention, disable-before-removal, invalid configuration preservation, owner isolation, anonymous rejection, Feature 2 migration, and direct database invariant enforcement. The complete suite reports 310 passed and the same 2 process-order-dependent SIGABRT failures in pre-existing fresh-interpreter issuer guards on this macOS runtime; all 7 guards pass in isolation. The 67-module frontend build, Python compilation, and `git diff --check` pass.
+
+**Known limitations:** Pickup settings are API-only. No buyer-facing pickup address, pickup selection, operating hours, inventory reservation, order creation, or checkout integration exists yet.
+
+### Feature 12: Market Shipping Settings
+
+**Status:** Implemented on 2026-09-26.
+
+**Changes:** Market owners can save supported shipping methods and enable shipping only when at least one method exists. The supported canonical methods are `USPS`, `UPS`, `FEDEX`, and `LOCAL_DRIVER`; markets may choose any nonempty subset. Owners can save methods while shipping is disabled, enable later, replace the active method set safely, disable shipping, and clear methods once shipping is disabled.
+
+**Files modified:** `api/db.py`, `api/markets.py`, `tests/test_markets.py`, `AGENTS.md`, `docs/CHANGELOG.md`.
+
+**Database/schema:** Added persisted `markets.shipping_enabled`, a `market_shipping_methods` relationship with a canonical-method constraint and unique market-method key, plus an additive migration for existing market databases. Database triggers reject enabling shipping without a method, creating a market with shipping already enabled, and removing the final method while shipping is enabled.
+
+**Routes:** Added owner-only `GET /markets/{market_id}/shipping-settings` and `PATCH /markets/{market_id}/shipping-settings`. PATCH accepts `shippingEnabled` and/or `supportedShippingMethods`, rejects duplicate or unsupported methods and an enabled empty set, and returns the canonical configured methods. It stores and displays carrier choices only. It does not call carrier APIs or fabricate tracking updates.
+
+**Authorization/security:** Every shipping settings request validates current market ownership before reading or writing configuration. Anonymous callers receive 401 and another owner receives 404. Client requests cannot select a different market. Shipping settings do not change pickup, buyer addresses, cart, checkout, orders, inventory, payment, or Timbre purchase authorization.
+
+**Verification:** Reinstalled all pinned requirements and ran `pip check`; no dependency was added. The focused market, buyer, owner, product, and address run passes all 128 tests, including method configuration, enabling, replacement, disabling and clearing, duplicate and unsupported-method rejection, owner isolation, anonymous rejection, direct database invariant enforcement, and the prior pickup migration behavior. The complete suite reports 320 passed and the same 2 process-order-dependent SIGABRT failures in pre-existing fresh-interpreter issuer guards on this macOS runtime; all 7 guards pass in isolation. The 67-module frontend build, Python compilation, and `git diff --check` pass.
+
+**Known limitations:** Shipping settings are API-only. Feature 13 exposes valid configured pickup or shipping choices to a buyer, but carrier rate lookup, label purchase, tracking, checkout integration, and order creation are not implemented.
+
+### Feature 13: Checkout Fulfillment Selection
+
+**Status:** Implemented on 2026-09-26.
+
+**Changes:** Added a buyer-authenticated fulfillment-selection API for a specific market. It returns only shipping and pickup methods that the market has actually enabled, requires a saved address for shipping, shows the active pickup address for pickup, and persists one current selection for each buyer-market pair. Re-selecting a method replaces that buyer's prior selection for the same market.
+
+**Files added:** `api/fulfillment_selection.py`, `tests/test_fulfillment_selection.py`.
+
+**Files modified:** `api/db.py`, `api/main.py`, `AGENTS.md`, `docs/CHANGELOG.md`.
+
+**Database/schema:** Added `buyer_market_fulfillment_selections`, keyed by buyer account and market. It stores either `SHIP` with a buyer-owned shipping address or `PICKUP` with no shipping address. Check constraints enforce that shape, and database triggers reject non-buyer accounts and cross-buyer address references even outside the API.
+
+**Routes:** Added buyer-authenticated `GET /buyer/markets/{market_id}/fulfillment-options` and `PUT /buyer/markets/{market_id}/fulfillment-selection`. The options response lists shipping only when the market has shipping enabled and configured methods, and lists pickup only when pickup is enabled and a pickup address exists. PUT returns 409 for an unavailable fulfillment method and 422 for a missing, unknown, or another buyer's shipping address. `PUT` was added to the existing origin-restricted credentialed CORS methods.
+
+**Authorization/security:** The authenticated buyer is derived only from the session. The server validates every selected market's current fulfillment configuration, verifies the supplied shipping address belongs to that buyer, and never accepts a client-provided buyer ID. A buyer cannot write another buyer's selection or use another buyer's private address. This selection changes neither payment nor existing Timbre purchase authorization.
+
+**Checkout boundary:** The existing `api/checkout.py` remains untouched because it prices the separate seeded legacy catalog and has no market identifier. The selection API is a validated staging point for Feature 14 order creation, not an order or payment action. A destructive checkout rewrite was avoided; Feature 14 must consume the selection only after it has a market-aware order/cart mapping.
+
+**Verification:** Reinstalled all pinned requirements and ran `pip check`; no dependency was added. Python compilation, `git diff --check`, and the focused buyer, market, address, authentication, and fulfillment suite pass with 134 tests. The isolated issuer guard suite passes all 7 tests. The production frontend build passes with 67 modules. The complete suite reports 326 passed and the same 2 pre-existing process-order-dependent SIGABRT failures in fresh-interpreter issuer import guards on this macOS runtime; those two guards pass in their isolated file.
+
+**Known limitations:** There is no buyer fulfillment UI, carrier rates, labels, inventory reservation, or change to the legacy seeded-catalog checkout. Feature 14 now consumes the saved selection through a separate market-aware checkout confirmation route.
+
+### Feature 14: Order Creation
+
+**Status:** Implemented on 2026-09-26.
+
+**Changes:** Added an isolated market-aware checkout confirmation route for one market's products. It re-prices seller products on the server, snapshots product names, prices, requested amounts, unit data, and the previously selected shipping or pickup details, then starts the existing issuer authorization flow. A persistent market order is created only after that issuer flow returns a verified transaction. The order begins in `NOT_STARTED` status.
+
+**Files added:** `api/market_orders.py`, `tests/test_market_orders.py`.
+
+**Files modified:** `api/db.py`, `api/main.py`, `api/checkout.py`, `AGENTS.md`, `docs/CHANGELOG.md`.
+
+**Database/schema:** Added short-lived `market_checkout_sessions` that snapshot a buyer's proposed market purchase before authorization. Added immutable-after-creation `market_orders` and `market_order_items`, which preserve the product name, integer-cent price, purchased amount, product measurement, fulfillment method, and applicable shipping or pickup address at purchase time. Market orders have a unique issuer instruction, buyer and market relationships, paid transaction identifier, timestamps, and initial `NOT_STARTED` fulfillment status.
+
+**Routes:** Added buyer-authenticated `POST /buyer/markets/{market_id}/checkout/confirm`. It rejects an unknown market, duplicate items, another market's products, missing fulfillment selection, unavailable or missing fulfillment address, and invalid quantities. It returns the issuer `instructionId` and `sessionId` for the existing Timbre authorization UI. Existing `POST /checkout/complete` now recognizes either legacy or market checkout instructions and materializes a market order after verification, while preserving its exact two-field public response.
+
+**Pricing and authorization:** Product prices always come from the current server-side `market_products` row at confirmation and are then frozen in the session and order snapshots. The current total equals the product subtotal because Features 12 and 14 have no carrier-rate or market shipping-fee calculation. A market checkout cannot create an order, status change, payment authorization, or successful result on its own. It uses the existing issuer session and only a verified issuer response writes `market_orders`.
+
+**Preservation decision:** The existing legacy checkout route and its seeded catalog are preserved. The new market-aware route is additive because the legacy cart has no market identifiers. The legacy response contract remains exactly `{verified, transaction_id}`.
+
+**Verification:** Reinstalled all pinned requirements and ran `pip check`; no dependency was added. Python compilation and the focused market order, fulfillment, market, buyer, product, and issuer-boundary suite pass with 156 tests. The focused tests cover verified creation, unverified non-creation, product and fulfillment snapshots, buyer authentication, missing selection, and cross-market product rejection. The isolated issuer guard suite passes all 7 tests. The production frontend build passes with 67 modules. The complete suite reports 329 passed and the same 2 pre-existing process-order-dependent SIGABRT failures in fresh-interpreter issuer import guards on this macOS runtime; those two guards pass in their isolated file. `git diff --check` passes.
+
+**Known limitations:** No buyer order history or details endpoint exists yet, and no market dashboard can read these orders until Features 16 and 20. Shipping totals are product subtotal only until carrier or market shipping fees are modeled. Inventory is not reserved or decremented. Feature 15 now splits a market-aware cart into private market orders.
+
+### Feature 15: Multi-Market Order Splitting
+
+**Status:** Implemented on 2026-09-26.
+
+**Changes:** Added buyer-authenticated `POST /buyer/markets/checkout/confirm` for market-tagged cart lines. It groups lines by market, verifies each market's fulfillment selection and product ownership, uses one existing issuer authorization session for the combined total, and creates separate internal market orders after authorization succeeds.
+
+**Files modified:** `api/db.py`, `api/market_orders.py`, `api/checkout.py`, `tests/test_market_orders.py`, `AGENTS.md`, `docs/CHANGELOG.md`.
+
+**Database/schema:** Added `authorization_instruction_id` to checkout snapshots. A multi-market checkout uses a distinct internal snapshot ID for each market and one shared authorization instruction. Existing Feature 14 snapshots are migrated to use their original instruction as the authorization instruction.
+
+**Authorization/security:** Each internal order retains its own market ID, product snapshots, fulfillment snapshot, and transaction ID. The market checkout route never accepts a client total or a market ID detached from its products. The existing two-field completion response and issuer authorization boundary remain unchanged.
+
+**Verification:** `tests/test_market_orders.py` passes all 4 tests, including one issuer-approved checkout containing two markets that produces two distinct market orders with one transaction ID. `git diff --check` passes. No dependency was added.
+
+**Known limitations:** Feature 16 now provides a market order dashboard API. Buyer order UI, shipping cost, inventory reservation, and carrier features remain unimplemented. The legacy seeded-catalog cart is unchanged because it has no market IDs.
+
+### Feature 16: Market Order Dashboard
+
+**Status:** Implemented on 2026-09-26.
+
+**Changes:** Added owner-only `GET /markets/{market_id}/orders`. It returns a market's completed authorized orders with ordered item snapshots, totals, fulfillment type, applicable shipping or pickup data, current status, and timestamps.
+
+**Files modified:** `api/market_orders.py`, `api/main.py`, `tests/test_market_order_dashboard.py`, `AGENTS.md`, `docs/CHANGELOG.md`.
+
+**Authorization/security:** The route verifies the market ID and owner account in one server-side query. Another owner receives 404 and cannot read a different market's orders. Responses omit buyer account IDs, email addresses, payment data, and transaction IDs.
+
+**Verification:** `.venv/bin/python -m pytest tests/test_market_order_dashboard.py tests/test_market_orders.py -q` passes 5 tests. `git diff --check` passes. No dependency was added.
+
+**Known limitations:** This is an API dashboard only. Order status changes, tracking, buyer order history, and carrier operations are deferred.
+
+**Follow-on:** Feature 17 adds the owner status workflow below.
+
+### Feature 17: Order Status Workflow
+
+**Status:** Implemented on 2026-09-26.
+
+**Changes:** Added owner-only `PATCH /markets/{market_id}/orders/{order_id}/status` with the server-enforced transitions `NOT_STARTED` to `FULFILLING` to `ORDER_COMPLETE`, then `SHIPPING` for shipping orders or `READY_FOR_PICKUP` for pickup orders. Invalid skips, reversals, and fulfillment-mismatched terminal states return 422.
+
+**Files modified:** `api/db.py`, `api/market_orders.py`, `tests/test_market_order_dashboard.py`, `AGENTS.md`, `docs/CHANGELOG.md`.
+
+**Database/schema:** Added an additive `fulfillment_status` column because the existing Feature 14 `status` column was intentionally constrained to `NOT_STARTED`. This preserves all existing records and avoids a destructive SQLite table rebuild. The original status remains the paid-order creation marker; fulfillment status is the mutable state machine field.
+
+**Authorization/security:** The mutation verifies both market ownership and the order's market relationship in one server-side query. Another owner cannot update the order. No client-provided status can bypass the allowed transition graph.
+
+**Verification:** `.venv/bin/python -m pytest tests/test_market_order_dashboard.py -q` passes 2 tests, including invalid terminal state rejection and the complete pickup workflow. `git diff --check` passes. No dependency was added.
+
+**Known limitations:** Dashboard and workflow are API-only. Carrier tracking, local driver state, buyer status view, and notifications remain deferred.
+
+**Next feature:** Feature 18, carrier tracking. Do not begin it until explicitly continuing the required feature cycle.
+
+### Feature 18: Carrier Tracking
+
+**Status:** Implemented on 2026-09-26.
+
+**Changes:** Added owner-only `PATCH /markets/{market_id}/orders/{order_id}/tracking`. Shipping orders can store one USPS, UPS, or FedEx carrier and tracking number. The existing market dashboard returns both fields.
+
+**Files modified:** `api/db.py`, `api/market_orders.py`, `tests/test_market_order_dashboard.py`, `AGENTS.md`, `docs/CHANGELOG.md`.
+
+**Authorization/security:** Tracking updates verify the market owner and order-market relationship server-side. Pickup orders reject tracking. Only validated carrier values are accepted. This stores merchant-provided tracking information and does not fabricate carrier events.
+
+**Verification:** `.venv/bin/python -m pytest tests/test_market_order_dashboard.py -q` passes 3 tests. `git diff --check` passes. No dependency was added.
+
+**Known limitations:** No carrier API, delivery-event polling, buyer tracking view, or local-driver workflow exists yet.
+
+**Next feature:** Feature 19, local-driver shipping. Do not begin it until explicitly continuing the required feature cycle.
+
+### Feature 19: Local Driver Shipping
+
+**Status:** Implemented on 2026-09-26.
+
+**Changes:** Added owner-only `PATCH /markets/{market_id}/orders/{order_id}/local-driver` for shipping orders. It marks an order as local-driver delivery, clears any carrier tracking data, and exposes `localDriver` plus the buyer-facing message, "A local driver is handling this delivery," in the market dashboard response.
+
+**Files modified:** `api/db.py`, `api/market_orders.py`, `tests/test_market_order_dashboard.py`, `AGENTS.md`, `docs/CHANGELOG.md`.
+
+**Authorization/security:** The action verifies owner and market relationship server-side and rejects pickup orders. Local-driver delivery does not accept or fabricate USPS, UPS, or FedEx tracking numbers.
+
+**Verification:** `.venv/bin/python -m pytest tests/test_market_order_dashboard.py -q` passes 4 tests. `git diff --check` passes. No dependency was added.
+
+**Known limitations:** No live driver assignment, GPS, delivery notifications, or buyer order-details screen exists yet.
+
+**Next feature:** Feature 20, buyer order history. Do not begin it until explicitly continuing the required feature cycle.
+
+### Feature 20: Buyer Order History
+
+**Status:** Implemented on 2026-09-26.
+
+**Changes:** Added buyer-authenticated `GET /buyer/markets/orders`. It lists the current buyer's market orders, including market name, purchased item snapshots, total, purchase time, fulfillment method, and current fulfillment status.
+
+**Files modified:** `api/market_orders.py`, `tests/test_market_order_dashboard.py`, `AGENTS.md`, `docs/CHANGELOG.md`.
+
+**Authorization/security:** The query scopes orders by the authenticated buyer account. Another buyer receives an empty history and cannot obtain another buyer's orders, shipping address, transaction ID, or tracking information from this endpoint.
+
+**Verification:** `.venv/bin/python -m pytest tests/test_market_order_dashboard.py -q` passes 5 tests. `git diff --check` passes. No dependency was added.
+
+**Known limitations:** This is API-only order history. Buyer order details, shipment tracking, pickup information, and local-driver messaging are deferred to Feature 21.
+
+**Next feature:** Feature 21, buyer order details and status. Do not begin it until explicitly continuing the required feature cycle.
+
+### Feature 21: Buyer Order Details and Status
+
+**Status:** Implemented on 2026-09-26.
+
+**Changes:** Added buyer-authenticated `GET /buyer/markets/orders/{order_id}`. It returns an individual order's market, purchased items, amount paid, current status, fulfillment type, shipping or pickup address when applicable, carrier tracking, and local-driver message when applicable.
+
+**Files modified:** `api/market_orders.py`, `tests/test_market_order_dashboard.py`, `AGENTS.md`, `docs/CHANGELOG.md`.
+
+**Authorization/security:** The order query matches both order ID and authenticated buyer account. Another buyer receives 404. The endpoint exposes only the buyer's own fulfillment data and does not expose market-owner account or payment-authorization internals.
+
+**Verification:** `.venv/bin/python -m pytest tests/test_market_order_dashboard.py -q` passes 6 tests. `git diff --check` passes. No dependency was added.
+
+**Known limitations:** Buyer history and details are API-only. There are no buyer UI screens, notification delivery, carrier polling, or live local-driver tracking.
+
+**Next feature:** Feature 22, commerce-agent multi-market integration. Do not begin it until explicitly continuing the required feature cycle.
+
+### Feature 22: Commerce-Agent Multi-Market Integration
+
+**Status:** Implemented, read-only marketplace search on 2026-09-26.
+
+**Changes:** Added `GET /agentic-shopping/commerce/marketplace-products?query=...`, a read-only catalog adapter that searches live products across markets and returns each product's market, price, display quantity, compatible normalized quantity, and quantity-per-dollar values. It only returns direct seller data and does not invent markets, products, or inventory.
+
+**Files added:** `api/marketplace_catalog.py`, `tests/test_marketplace_catalog.py`.
+
+**Files modified:** `api/main.py`, `AGENTS.md`, `docs/CHANGELOG.md`.
+
+**Comparison safety:** Responses retain the seller display unit and include normalized values and dimensions from Feature 8. Weight, volume, and count remain distinct, so a consumer can compare quantity-per-dollar only within a compatible dimension.
+
+**Preservation decision:** The existing agentic browser cart accepts only legacy catalog IDs, while market checkout uses market-tagged product IDs. Replacing that working cart would be destructive, so this feature exposes marketplace search data and keeps market checkout through the Feature 15 route. A future adapter can add the market-tagged selection to the browser cart without modifying seller inventory, fulfillment, authorization, or payment behavior.
+
+**Verification:** `.venv/bin/python -m pytest tests/test_marketplace_catalog.py -q` passes 1 test. `git diff --check` passes. No dependency was added.
+
+**Known limitations:** Marketplace results are API-only and are not yet rendered by the agentic UI or directly added to the legacy browser cart. The marketplace search cannot modify products, order status, fulfillment choices, or payment authorization.
+
 **Next, in order:**
 0. Set a valid backend `OPENAI_API_KEY` and speak a catalog request through the new full-request panel to verify the live provider round trip. Automated provider behavior is covered with mocked responses, but no live key was available during implementation.
 1. Phase 7 live: set `LLM_API_KEY` and try a spoken item end to end. The rerank on-vs-off intent-accuracy delta (§3.2) needs real recordings of people naming catalog items; TORGO has none and §2.3 forbids imitating them.

@@ -24,6 +24,182 @@ alternatives considered and why they were rejected.
 
 ---
 
+### 2026-09-26 15:40 - Add agentic marketplace catalog search
+
+- **Files:** api/marketplace_catalog.py, tests/test_marketplace_catalog.py, api/main.py, AGENTS.md, docs/CHANGELOG.md.
+- **What:** Added a read-only agentic marketplace search across live market products with market identity, display and normalized quantity, and quantity-per-dollar fields.
+- **Why:** The commerce agent needs real multi-market catalog data without inventing inventory or changing seller, cart, fulfillment, or payment state.
+- **Verify:** `.venv/bin/python -m pytest tests/test_marketplace_catalog.py -q` (1 passed); `git diff --check`.
+- **Risk/Notes:** Existing browser cart accepts legacy catalog IDs only, so marketplace results remain API-only until an additive market-tagged cart adapter is built. No dependency was added.
+
+### 2026-09-26 15:32 - Add buyer market order details
+
+- **Files:** api/market_orders.py, tests/test_market_order_dashboard.py, AGENTS.md, docs/CHANGELOG.md.
+- **What:** Added private buyer order-detail retrieval with order status, market, purchased items, fulfillment address, carrier tracking, and local-driver delivery information where applicable.
+- **Why:** Buyers need to inspect the fulfillment state and details of an individual order without access to another buyer's purchases.
+- **Verify:** `.venv/bin/python -m pytest tests/test_market_order_dashboard.py -q` (6 passed); `git diff --check`.
+- **Risk/Notes:** This is an API detail view only. It does not poll carriers or provide buyer notifications. No dependency was added.
+
+### 2026-09-26 15:25 - Add buyer market order history
+
+- **Files:** api/market_orders.py, tests/test_market_order_dashboard.py, AGENTS.md, docs/CHANGELOG.md.
+- **What:** Added a buyer-authenticated order history listing with market, item, total, fulfillment method, status, and date data, scoped to the current buyer.
+- **Why:** Buyers need to view both active and completed orders without exposing another buyer's purchases.
+- **Verify:** `.venv/bin/python -m pytest tests/test_market_order_dashboard.py -q` (5 passed); `git diff --check`.
+- **Risk/Notes:** History is API-only and does not yet provide individual order details, addresses, pickup information, or tracking. No dependency was added.
+
+### 2026-09-26 15:17 - Add local driver delivery
+
+- **Files:** api/db.py, api/market_orders.py, tests/test_market_order_dashboard.py, AGENTS.md, docs/CHANGELOG.md.
+- **What:** Added owner-authorized local-driver designation for shipping orders, clears carrier tracking when selected, and displays a local-driver delivery message in the dashboard.
+- **Why:** Markets that use a local driver need a valid shipment path without requiring carrier tracking numbers.
+- **Verify:** `.venv/bin/python -m pytest tests/test_market_order_dashboard.py -q` (4 passed); `git diff --check`.
+- **Risk/Notes:** This stores delivery handling only. There is no driver assignment, GPS tracking, or buyer order UI. No dependency was added.
+
+### 2026-09-26 15:10 - Add carrier tracking storage
+
+- **Files:** api/db.py, api/market_orders.py, tests/test_market_order_dashboard.py, AGENTS.md, docs/CHANGELOG.md.
+- **What:** Added owner-authorized USPS, UPS, and FedEx tracking storage for shipping orders and dashboard display.
+- **Why:** Markets need to associate a real carrier tracking number with a shipment without inventing carrier updates.
+- **Verify:** `.venv/bin/python -m pytest tests/test_market_order_dashboard.py -q` (3 passed); `git diff --check`.
+- **Risk/Notes:** Tracking is stored and displayed only. Carrier API integration and buyer tracking views are deferred. No dependency was added.
+
+### 2026-09-26 15:02 - Add market order fulfillment states
+
+- **Files:** api/db.py, api/market_orders.py, tests/test_market_order_dashboard.py, AGENTS.md, docs/CHANGELOG.md.
+- **What:** Added owner-authorized backend transitions from not started through fulfilling and completion, branching to shipping or ready for pickup based on the stored fulfillment type.
+- **Why:** Markets need an enforced fulfillment lifecycle without client-controlled status jumps.
+- **Verify:** `.venv/bin/python -m pytest tests/test_market_order_dashboard.py -q` (2 passed); `git diff --check`.
+- **Risk/Notes:** Added a separate fulfillment status column to preserve Feature 14 rows and avoid rebuilding the existing SQLite orders table. Tracking and buyer status views are not implemented. No dependency was added.
+
+### 2026-09-26 14:52 - Add market order dashboard
+
+- **Files:** api/market_orders.py, api/main.py, tests/test_market_order_dashboard.py, AGENTS.md, docs/CHANGELOG.md.
+- **What:** Added an owner-protected market order listing with purchased item snapshots, totals, fulfillment information, status, and timestamps.
+- **Why:** Market owners need a server-authorized view of their own fulfillment work.
+- **Verify:** `.venv/bin/python -m pytest tests/test_market_order_dashboard.py tests/test_market_orders.py -q` (5 passed); `git diff --check`.
+- **Risk/Notes:** Dashboard is API-only. Status updates, tracking, and buyer order views are not implemented. No dependency was added.
+
+### 2026-09-26 14:40 - Split authorized multi-market carts
+
+- **Files:** api/db.py, api/market_orders.py, api/checkout.py, tests/test_market_orders.py, AGENTS.md, docs/CHANGELOG.md.
+- **What:** Added a market-tagged cart confirmation endpoint that groups lines by market, snapshots each group independently, uses one issuer authorization instruction for the aggregate total, and materializes one private market order per group after verification.
+- **Why:** A multi-market cart must give each seller only its own fulfillment work while keeping buyer payment authorization unified.
+- **Verify:** `.venv/bin/python -m pytest tests/test_market_orders.py -q` (4 passed); `git diff --check`.
+- **Risk/Notes:** Market orders have no dashboard or buyer UI yet. Legacy cart checkout remains separate because its catalog has no market IDs. No dependency was added.
+
+### 2026-09-26 14:28 - Create verified market orders
+
+- **Files:** api/market_orders.py, tests/test_market_orders.py, api/db.py, api/main.py, api/checkout.py, AGENTS.md, docs/CHANGELOG.md.
+- **What:** Added a buyer-authenticated, market-aware checkout confirmation route, pre-authorization market checkout snapshots, durable market orders and order-item snapshots, and issuer-approved order materialization. The existing checkout completion response remains exactly `{verified, transaction_id}` while it now recognizes market instruction IDs internally.
+- **Why:** A seller order must preserve the purchased product and fulfillment state and may exist only after the existing Timbre authorization flow verifies payment.
+- **Verify:** `.venv/bin/python -m pip install -r requirements.txt`; `.venv/bin/python -m pip check`; `.venv/bin/python -m compileall -q api`; `.venv/bin/python -m pytest tests/test_market_orders.py tests/test_fulfillment_selection.py tests/test_markets.py tests/test_buyer_addresses.py tests/test_buyer_auth.py tests/test_market_products.py tests/test_boundary.py -q` (156 passed); `.venv/bin/python -m pytest tests/test_guards.py -q` (7 passed); `.venv/bin/python -m pytest -q` (329 passed, 2 pre-existing fresh-interpreter guards abort only in combined macOS suite order and pass in isolation); `npm --prefix web run build` (67 modules); `git diff --check`.
+- **Risk/Notes:** Market shipping is not priced yet, so market total currently equals product subtotal. No inventory reservation, multi-market cart split, buyer order view, or market fulfillment dashboard exists. The existing legacy catalog checkout and payment boundary remain in place. No dependency was added.
+
+### 2026-09-26 14:08 - Add buyer fulfillment selection
+
+- **Files:** api/fulfillment_selection.py, tests/test_fulfillment_selection.py, api/db.py, api/main.py, AGENTS.md, docs/CHANGELOG.md.
+- **What:** Added buyer-authenticated market fulfillment options and a persisted per-buyer, per-market shipping or pickup selection. The server exposes only enabled market capabilities, requires a buyer-owned saved address for shipping, returns pickup information only for active pickup, and protects the database relationship with shape, role, and address-ownership checks. Added PUT to credentialed CORS methods.
+- **Why:** Buyers need a validated fulfillment decision before later market-aware order creation can use it.
+- **Verify:** `.venv/bin/python -m pip install -r requirements.txt`; `.venv/bin/python -m pip check`; `.venv/bin/python -m compileall -q api`; `.venv/bin/python -m pytest tests/test_fulfillment_selection.py tests/test_markets.py tests/test_buyer_addresses.py tests/test_buyer_auth.py tests/test_market_auth.py tests/test_market_products.py -q` (134 passed); `.venv/bin/python -m pytest tests/test_guards.py -q` (7 passed); `.venv/bin/python -m pytest -q` (326 passed, 2 pre-existing fresh-interpreter guards abort only in combined macOS suite order and pass in isolation); `npm --prefix web run build` (67 modules); `git diff --check`.
+- **Risk/Notes:** Existing checkout stays unchanged because it operates only on the separate seeded catalog and has no market mapping. This saved selection does not create an order, reserve inventory, authorize payment, or alter Timbre purchase authentication. No dependency was added.
+
+### 2026-09-26 13:45 - Add market shipping settings
+
+- **Files:** api/db.py, api/markets.py, tests/test_markets.py, AGENTS.md, docs/CHANGELOG.md.
+- **What:** Added persisted shipping enablement and canonical per-market USPS, UPS, FedEx, and local-driver method configuration, plus private owner settings routes. Added additive migration and triggers that require a method before shipping can be enabled and preserve an active market's last method. Added configuration, validation, authorization, and direct-invariant tests.
+- **Why:** Markets need explicit fulfillment capabilities before checkout can offer a buyer valid shipping or pickup choices.
+- **Verify:** `.venv/bin/python -m pip install -r requirements.txt`; `.venv/bin/python -m pip check`; `.venv/bin/python -m compileall -q api`; `.venv/bin/python -m pytest tests/test_markets.py tests/test_market_auth.py tests/test_market_products.py tests/test_buyer_auth.py tests/test_buyer_addresses.py -q` (128 passed); `.venv/bin/python -m pytest tests/test_guards.py -q` (7 passed); `.venv/bin/python -m pytest -q` (320 passed, 2 pre-existing fresh-interpreter guards abort only in combined macOS suite order and pass in isolation); `npm --prefix web run build` (67 modules); `git diff --check`.
+- **Risk/Notes:** This feature stores methods only. Carrier integrations, buyer fulfillment selection, checkout linkage, orders, and tracking are not implemented. No dependency was added.
+
+### 2026-09-26 13:24 - Add market pickup settings
+
+- **Files:** api/db.py, api/markets.py, tests/test_markets.py, AGENTS.md, docs/CHANGELOG.md.
+- **What:** Added market pickup enablement, one pickup address per market, private owner settings read/update routes, additive migration for the new flag, and database triggers that require an address before pickup can be enabled and prevent active address deletion. Added configuration, authorization, migration, and direct-invariant tests.
+- **Why:** Markets need a real pickup location before buyers can later select pickup fulfillment.
+- **Verify:** `.venv/bin/python -m pip install -r requirements.txt`; `.venv/bin/python -m pip check`; `.venv/bin/python -m compileall -q api`; `.venv/bin/python -m pytest tests/test_markets.py tests/test_market_auth.py tests/test_market_products.py tests/test_buyer_auth.py tests/test_buyer_addresses.py -q` (118 passed); `.venv/bin/python -m pytest tests/test_guards.py -q` (7 passed); `.venv/bin/python -m pytest -q` (310 passed, 2 pre-existing fresh-interpreter guards abort only in combined macOS suite order and pass in isolation); `npm --prefix web run build` (67 modules); `git diff --check`.
+- **Risk/Notes:** Pickup management is owner API-only. Buyer-facing pickup information, fulfillment selection, shipping, order creation, and checkout integration are not implemented. No dependency was added.
+
+### 2026-09-26 13:04 - Add buyer shipping addresses
+
+- **Files:** api/buyer_addresses.py (new), tests/test_buyer_addresses.py (new), api/db.py, api/main.py, AGENTS.md, docs/CHANGELOG.md.
+- **What:** Added private buyer-address create and list routes, required shipping-field validation and normalization, optional second line support, a buyer-address database table and index, and a database trigger that rejects non-buyer address ownership. Added privacy, validation, and direct-invariant tests.
+- **Why:** Buyers need persistent private shipping addresses before checkout can offer shipping fulfillment.
+- **Verify:** `.venv/bin/python -m pip install -r requirements.txt`; `.venv/bin/python -m pip check`; `.venv/bin/python -m compileall -q api`; `.venv/bin/python -m pytest tests/test_buyer_addresses.py tests/test_buyer_auth.py tests/test_market_auth.py tests/test_markets.py tests/test_market_products.py -q` (113 passed); `.venv/bin/python -m pytest tests/test_guards.py -q` (7 passed); `.venv/bin/python -m pytest -q` (305 passed, 2 pre-existing fresh-interpreter guards abort only in combined macOS suite order and pass in isolation); `npm --prefix web run build` (67 modules); `git diff --check`.
+- **Risk/Notes:** This feature stores and lists addresses only. Editing, removal, pickup, shipping setup, fulfillment selection, orders, and checkout linkage are not implemented. No dependency was added.
+
+### 2026-09-26 12:49 - Add buyer account login
+
+- **Files:** api/buyer_auth.py (new), tests/test_buyer_auth.py (new), api/config.py, api/main.py, api/market_auth.py, AGENTS.md, docs/CHANGELOG.md.
+- **What:** Added buyer registration, login, logout, current-session lookup, a buyer authorization dependency, and a distinct HttpOnly buyer cookie. Reused existing account/session tables, salted scrypt password storage, session digest storage, expiry checks, validation, and CORS behavior. Generalized the existing session lookup to enforce either expected account role server-side.
+- **Why:** Buyers need an authenticated shopping identity before private addresses, orders, and fulfillment choices can be added, without replacing merchant authentication or Timbre purchase authorization.
+- **Verify:** `.venv/bin/python -m pip install -r requirements.txt`; `.venv/bin/python -m pip check`; `.venv/bin/python -m compileall -q api`; `.venv/bin/python -m pytest tests/test_buyer_auth.py tests/test_market_auth.py tests/test_markets.py tests/test_market_products.py -q` (100 passed); `.venv/bin/python -m pytest tests/test_guards.py -q` (7 passed); `.venv/bin/python -m pytest -q` (292 passed, 2 pre-existing fresh-interpreter guards abort only in combined macOS suite order and pass in isolation); `npm --prefix web run build` (67 modules); `git diff --check`.
+- **Risk/Notes:** Buyer login is API-only and has no profile, address, order, or checkout integration yet. Market-owner and buyer browser sessions use separate cookies. No dependency or database migration was added.
+
+### 2026-09-26 12:31 - Normalize market product units
+
+- **Files:** api/market_units.py (new), api/market_products.py, tests/test_market_products.py, AGENTS.md, docs/CHANGELOG.md.
+- **What:** Added pure quantity normalization to milligrams for weight, milliliters for volume, and count for count products. Product API responses retain seller display values and now expose normalized quantity, normalized unit, dimension, and normalized quantity per dollar. Added a dimension-safe compatibility helper and conversion, null, and incompatible-dimension tests.
+- **Why:** Future marketplace comparison needs compatible measurements in a common base while preserving the seller's original display units and never equating weight, volume, and count.
+- **Verify:** `.venv/bin/python -m pip install -r requirements.txt`; `.venv/bin/python -m pip check`; `.venv/bin/python -m compileall -q api`; `.venv/bin/python -m pytest tests/test_market_products.py tests/test_markets.py -q` (86 passed); `.venv/bin/python -m pytest tests/test_guards.py -q` (7 passed); `.venv/bin/python -m pytest -q` (285 passed, 2 pre-existing fresh-interpreter guards abort only in combined macOS suite order and pass in isolation); `npm --prefix web run build` (67 modules); `git diff --check`.
+- **Risk/Notes:** Normalization does not search or rank products, and it rejects cross-dimension comparisons. No dependency or database column was added.
+
+### 2026-09-26 12:18 - Calculate market product quantity per dollar
+
+- **Files:** api/market_products.py, tests/test_market_products.py, AGENTS.md, docs/CHANGELOG.md.
+- **What:** Added server-derived `quantityPerDollar` to market-product create, list, and update responses. It divides stored quantity by the existing integer-cent USD price, returns null for unmeasured or zero-price products, and is never stored or client-controlled. Added tests for pound, milliliter, and count examples, recalculation after a price edit, null cases, and no derived database column.
+- **Why:** Sellers and future commerce comparisons need a current amount-per-dollar value without duplicate mutable state.
+- **Verify:** `.venv/bin/python -m pip install -r requirements.txt`; `.venv/bin/python -m pip check`; `.venv/bin/python -m compileall -q api`; `.venv/bin/python -m pytest tests/test_market_products.py tests/test_markets.py -q` (78 passed); `.venv/bin/python -m pytest tests/test_guards.py -q` (7 passed); `.venv/bin/python -m pytest -q` (277 passed, 2 pre-existing fresh-interpreter guards abort only in combined macOS suite order and pass in isolation); `npm --prefix web run build` (67 modules); `git diff --check`.
+- **Risk/Notes:** The value uses the seller-entered unit and does not compare incompatible dimensions. Feature 8 will add compatible-unit normalization. No dependency or database column was added.
+
+### 2026-09-26 12:10 - Add market product quantity and units
+
+- **Files:** api/db.py, api/market_products.py, tests/test_market_products.py, AGENTS.md, docs/CHANGELOG.md.
+- **What:** Added optional positive numeric product quantities with canonical weight, volume, and count units to the seller-product API and responses. Added complete-pair validation, database constraints and triggers, an additive migration for Feature 4/5 databases, and tests for valid measurements, invalid and incomplete writes, editing and clearing, migration, and direct database enforcement.
+- **Why:** Market products need a stable physical amount before quantity-per-dollar calculation and later compatible-unit comparison can be built.
+- **Verify:** `.venv/bin/python -m pip install -r requirements.txt`; `.venv/bin/python -m pip check`; `.venv/bin/python -m compileall -q api`; `.venv/bin/python -m pytest tests/test_market_products.py tests/test_markets.py -q` (73 passed); `.venv/bin/python -m pytest tests/test_guards.py -q` (7 passed); `.venv/bin/python -m pytest -q` (272 passed, 2 pre-existing fresh-interpreter guards abort only in combined macOS suite order and pass in isolation); `npm --prefix web run build` (67 modules); `git diff --check`.
+- **Risk/Notes:** Quantity is optional, so individually sold products remain supported. Units are validated and stored but are not normalized or compared yet; Feature 7 will calculate quantity per dollar. No dependency was added.
+
+### 2026-09-26 11:43 - Add market product management
+
+- **Files:** api/main.py, api/market_products.py, tests/test_market_products.py, AGENTS.md, docs/CHANGELOG.md.
+- **What:** Added authenticated per-market product listing, partial editing, photo clearing, and permanent product removal. Every route verifies the authenticated owner against the path market, and updates and deletes also require the product to belong to that same market. Added API validation, ownership-isolation, deletion, and no-mutation regression tests. Added DELETE to the existing origin-restricted credentialed CORS policy.
+- **Why:** Market owners need to view and manage their catalog while preventing a supplied product ID from crossing market boundaries.
+- **Verify:** `.venv/bin/python -m pip install -r requirements.txt`; `.venv/bin/python -m pip check`; `.venv/bin/python -m pytest tests/test_market_products.py tests/test_markets.py tests/test_market_auth.py tests/test_health.py tests/test_boundary.py -q` (91 passed); `.venv/bin/python -m pytest tests/test_guards.py -q` (7 passed); `.venv/bin/python -m pytest -q` (250 passed, 2 pre-existing fresh-interpreter guards abort only in combined macOS suite order and pass in isolation); `npm --prefix web run build` (67 modules); `.venv/bin/python -m compileall -q api tests/test_market_products.py`; `git diff --check`.
+- **Risk/Notes:** Product removal is permanent and has no owner UI yet. Products remain separate from the seeded catalog and do not yet appear in storefront, cart, or agent queries. Quantity and unit fields remain deferred to Feature 6. No dependency was added.
+
+### 2026-09-26 11:41 - Add market-owned product creation
+
+- **Files:** api/market_products.py (new), tests/test_market_products.py (new), api/db.py, api/main.py, AGENTS.md, docs/CHANGELOG.md.
+- **What:** Added `POST /markets/{market_id}/products` for authenticated owners, a separate `market_products` table, market ownership checks in the insertion transaction, exact integer-cent storage, required normalized names, nonnegative prices with at most two decimal places, optional safe photo references, and validation and authorization tests. The working seeded `products` catalog was preserved unchanged. Listing, editing, and removal were not added.
+- **Why:** Market owners need to create minimal products without fabricating the legacy demo catalog's required merchandising fields or destructively changing its existing cart and voice-shopping behavior.
+- **Verify:** `.venv/bin/python -m pip install -r requirements.txt`; `.venv/bin/python -m pip check`; `.venv/bin/python -m pytest tests/test_market_products.py tests/test_markets.py tests/test_market_auth.py tests/test_health.py tests/test_boundary.py -q` (77 passed); `.venv/bin/python -m pytest tests/test_guards.py -q` (7 passed); `.venv/bin/python -m pytest -q` (236 passed, 2 pre-existing fresh-interpreter guards abort only in combined macOS suite order and pass in isolation); `npm --prefix web run build` (67 modules); `.venv/bin/python -m compileall -q api tests/test_market_products.py`; `git diff --check`.
+- **Risk/Notes:** Product management is API-only. Market products are intentionally separate from the seeded legacy catalog until a later adapter joins them. They do not yet appear in storefronts, carts, or agent searches. No dependency was added.
+
+### 2026-09-26 11:38 - Add scoped market branding
+
+- **Files:** web/src/pages/MarketStorefront.jsx (new), api/db.py, api/main.py, api/markets.py, tests/test_markets.py, web/src/App.jsx, web/src/components/PageHeading.jsx, web/src/lib/api.js, web/src/lib/router.js, web/src/styles.css, AGENTS.md, docs/CHANGELOG.md.
+- **What:** Added persisted market primary colors and optional logo URLs, an additive Feature 2 database migration, public branding reads, owner-authorized branding updates, strict color and logo-reference validation, private owner IDs in public responses, and a public market branding view. The view uses the owner color only for scoped decorative borders and displays generated market initials when no logo exists. No product functionality was added.
+- **Why:** Markets need customizable, safely scoped identity without changing Timbre's global theme or requiring a new image-storage system.
+- **Verify:** `.venv/bin/python -m pip install -r requirements.txt`; `.venv/bin/python -m pip check`; `.venv/bin/python -m pytest tests/test_markets.py tests/test_market_auth.py tests/test_health.py tests/test_boundary.py -q` (60 passed); `.venv/bin/python -m pytest tests/test_guards.py -q` (7 passed); `.venv/bin/python -m pytest -q` (219 passed, 2 pre-existing fresh-interpreter guards abort only in combined macOS suite order and pass in isolation); `npm --prefix web run build` (67 modules); `.venv/bin/python -m compileall -q api tests/test_markets.py`; `git diff --check`.
+- **Risk/Notes:** Branding management is API-only. Logos are referenced by HTTPS URL or root-relative static path; uploads are not implemented because no upload service exists. No dependency was added. Product creation remains unimplemented until Feature 4.
+
+### 2026-09-26 11:31 - Add authenticated market creation
+
+- **Files:** api/markets.py (new), tests/test_markets.py (new), api/db.py, api/main.py, AGENTS.md, docs/CHANGELOG.md.
+- **What:** Added `POST /markets`, which accepts a required market name and derives the persistent owner relationship exclusively from the authenticated market-owner session. Added the `markets` table, owner index, restrictive owner foreign key, database role trigger, normalized name validation, and tests for creation, persistence, authentication, spoofing, validation, and database invariants. No branding, product, buyer, order, or fulfillment functionality was added.
+- **Why:** A market must be created only by a valid authenticated owner and must never become anonymous or orphaned.
+- **Verify:** `.venv/bin/python -m pip install -r requirements.txt`; `.venv/bin/python -m pip check`; `.venv/bin/python -m pytest tests/test_markets.py tests/test_market_auth.py tests/test_health.py tests/test_boundary.py -q` (47 passed); `.venv/bin/python -m pytest tests/test_guards.py -q` (7 passed); `.venv/bin/python -m pytest -q` (206 passed, 2 pre-existing fresh-interpreter guards abort only in combined macOS suite order and pass in isolation); `npm --prefix web run build` (66 modules); `git diff --check`.
+- **Risk/Notes:** This feature is API-only. Market listing and administration UI are not implemented. Market branding is reserved for Feature 3. No dependency was added; the new module uses Python standard-library UUID and datetime support plus already-pinned FastAPI and Pydantic.
+
+### 2026-09-26 11:28 - Add market-owner account authentication
+
+- **Files:** api/market_auth.py (new), tests/test_market_auth.py (new), api/db.py, api/config.py, api/main.py, .env.example, AGENTS.md, docs/CHANGELOG.md.
+- **What:** Added merchant-side market-owner registration, login, logout, current-session lookup, and a reusable server-side authorization dependency. Added account and expiring session tables, salted scrypt password hashing, digest-only session storage, an HttpOnly SameSite cookie, environment settings, credentialed same-origin CORS, and focused tests. No market, product-management, buyer, order, or fulfillment feature was added.
+- **Why:** Multi-market work must start with an authenticated owner identity so later market creation cannot be anonymous or orphaned, while preserving the separate issuer and Timbre purchase-authorization boundary.
+- **Verify:** `.venv/bin/python -m pip install -r requirements.txt`; `.venv/bin/python -m pip check`; `.venv/bin/python -m pytest tests/test_market_auth.py tests/test_health.py tests/test_boundary.py -q` (40 passed); `.venv/bin/python -m pytest tests/test_guards.py -q` (7 passed); `.venv/bin/python -m pytest -q` (199 passed, 2 pre-existing fresh-interpreter guards abort only in combined macOS suite order and pass in isolation); `npm --prefix web run build` (66 modules); `git diff --check`.
+- **Risk/Notes:** This feature is API-only. Market creation is not implemented. Buyer authentication is not implemented even though the role value is reserved in the schema. Set `MARKET_SESSION_COOKIE_SECURE=true` under production HTTPS. No external dependency was added because the new cryptographic and token imports are Python standard library modules.
+
 ### 2026-09-26 16:15 - Make the header voice button start agentic shopping
 
 - **Files:** web/src/components/SiteHeader.jsx, web/src/components/jump.js, web/src/components/AgenticVoiceShopping.jsx, web/src/components/VoiceShopping.jsx, AGENTS.md.

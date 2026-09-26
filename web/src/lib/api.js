@@ -31,6 +31,7 @@ const toItems = (lines) => lines.map((l) => ({ product_id: l.productId, quantity
 export const getHealth = () => request("/healthz");
 export const getCatalog = () => request("/catalog");
 export const getStoreInfo = () => request("/store");
+export const getMarketBranding = (marketId) => request(`/markets/${encodeURIComponent(marketId)}`);
 export const quoteCart = (lines) => request("/cart/quote", { method: "POST", body: { items: toItems(lines) } });
 export const confirmCheckout = (lines) => request("/checkout/confirm", { method: "POST", body: { items: toItems(lines) } });
 // Returns exactly {verified, transaction_id}: all the merchant ever learns (§2.5).

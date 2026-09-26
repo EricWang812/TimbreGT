@@ -8,6 +8,8 @@ function parse(hash) {
   const path = hash.replace(/^#/, "") || "/";
   const receipt = path.match(/^\/receipt\/([0-9a-f-]{36})$/i);
   if (receipt) return { name: "receipt", instructionId: receipt[1] };
+  const market = path.match(/^\/markets\/([0-9a-f-]{36})$/i);
+  if (market) return { name: "market", marketId: market[1] };
   // The bank's own app (issuer surface), mounted at its own route.
   const enroll = path.match(/^\/bank\/enroll(?:\/([A-Za-z0-9_-]{1,64}))?$/);
   if (enroll) return { name: "bank-enroll", userId: enroll[1] ?? null };

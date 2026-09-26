@@ -56,6 +56,10 @@ ISSUER_TIMEOUT_S = 10.0
 
 # --- Storage ---
 DB_BUSY_TIMEOUT_S = 5.0
+MARKET_SESSION_TTL_SECONDS = int(os.environ.get("MARKET_SESSION_TTL_SECONDS", "43200"))
+MARKET_SESSION_COOKIE = "timbre_market_session"
+BUYER_SESSION_COOKIE = "timbre_buyer_session"
+MARKET_SESSION_COOKIE_SECURE = os.environ.get("MARKET_SESSION_COOKIE_SECURE", "false").lower() == "true"
 
 
 def _require_choice(name: str, value: str, choices: set[str]) -> str:

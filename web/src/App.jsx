@@ -11,6 +11,7 @@ import Checkout from "./pages/Checkout.jsx";
 import Dashboard from "./pages/Dashboard.jsx";
 import Receipt from "./pages/Receipt.jsx";
 import Shop from "./pages/Shop.jsx";
+import MarketStorefront from "./pages/MarketStorefront.jsx";
 
 function useCatalog() {
   const [state, setState] = useState({ status: "loading", products: [], byId: {} });
@@ -43,6 +44,7 @@ const TITLES = {
   receipt: "Receipt, Seaside Market",
   baseline: "Two ways to check a voice, Timbre demo",
   dashboard: "Voice changes over time, Timbre demo",
+  market: "Market storefront, Timbre",
   "bank-enroll": "Set up voice approval, your bank (demo)",
 };
 
@@ -75,11 +77,12 @@ function Shell() {
       <a className="skip-link" href="#main-content" onClick={skipToMain}>Skip to main content</a>
       <SiteHeader onOpenCart={() => setCartOpen(true)} />
       {/* key: each route mounts fresh, so the .route-enter fade (styles.css) replays on navigation. */}
-      <main id="main-content" tabIndex={-1} key={route.name} className="route-enter">
+      <main id="main-content" tabIndex={-1} key={`${route.name}:${route.marketId ?? ""}`} className="route-enter">
         {route.name === "shop" && <Shop catalog={catalog} onOpenCart={() => setCartOpen(true)} />}
         {route.name === "checkout" && <Checkout products={catalog.byId} />}
         {route.name === "baseline" && <Baseline />}
         {route.name === "dashboard" && <Dashboard />}
+        {route.name === "market" && <MarketStorefront marketId={route.marketId} />}
         {route.name === "receipt" && <Receipt key={route.instructionId} instructionId={route.instructionId} products={catalog.byId} />}
       </main>
       <footer className="site-footer">
