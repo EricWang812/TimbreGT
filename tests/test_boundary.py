@@ -189,6 +189,24 @@ def test_order_record_holds_no_verification_details(clients):
     }
 
 
+def test_market_order_records_hold_no_verification_details(clients):
+    # Market checkout completes through the same /checkout/complete boundary;
+    # its tables may keep the transaction_id and nothing else from the issuer.
+    orders = {r["name"] for r in merchant_db.fetch_all("PRAGMA table_info(market_orders)")}
+    assert orders == {
+        "id", "instruction_id", "buyer_account_id", "market_id", "subtotal_cents", "total_cents",
+        "fulfillment_method", "status", "transaction_id", "shipping_address_json",
+        "pickup_address_json", "created_at", "updated_at", "fulfillment_status", "carrier",
+        "tracking_number", "local_driver",
+    }
+    sessions = {r["name"] for r in merchant_db.fetch_all("PRAGMA table_info(market_checkout_sessions)")}
+    assert sessions == {
+        "instruction_id", "authorization_instruction_id", "buyer_account_id", "market_id",
+        "items_json", "subtotal_cents", "total_cents", "fulfillment_method",
+        "shipping_address_json", "pickup_address_json", "created_at",
+    }
+
+
 # --- Pricing integrity -----------------------------------------------------
 
 def test_issuer_charges_exactly_the_merchant_total(clients):

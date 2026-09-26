@@ -24,6 +24,14 @@ alternatives considered and why they were rejected.
 
 ---
 
+### 2026-09-26 13:35 - Fix shared-DB marketplace test; pin market tables to the boundary
+
+- **Files:** tests/test_marketplace_catalog.py, tests/test_boundary.py, docs/CHANGELOG.md.
+- **What:** The marketplace search test now finds its own product by id instead of assuming it ranks first (the suite shares one merchant.db, so another test's cheaper apples came back first and `make test` failed). Added `test_market_order_records_hold_no_verification_details`, which pins the columns of `market_orders` and `market_checkout_sessions` the same way `orders` is already pinned.
+- **Why:** Commit 54174bc routed market checkout through `/checkout/complete`, but the §2.5 schema check covered only the original `orders` table.
+- **Verify:** `make test` (340 passed). Reviewed by hand: `/checkout/complete` still returns only `ApprovalResult{verified, transaction_id}`, market orders are created only on a verified result, the market tests assert the exact two-key body, and no merchant table has a card, score, threshold, attempt, or fallback-method column.
+- **Risk/Notes:** Test-only change. Timestamps on the entries below (15:10 to 15:40) are later than this entry's real clock time; they were written that way by the previous agent.
+
 ### 2026-09-26 15:40 - Add agentic marketplace catalog search
 
 - **Files:** api/marketplace_catalog.py, tests/test_marketplace_catalog.py, api/main.py, AGENTS.md, docs/CHANGELOG.md.

@@ -11,8 +11,8 @@ def test_agentic_marketplace_search_returns_market_and_normalized_value_data():
         product = client.post(f"/markets/{market['id']}/products", json={"name": "Organic Apples", "price": 4, "quantity": 2, "unit": "lb"}).json()
         result = client.get("/agentic-shopping/commerce/marketplace-products", params={"query": "apples"})
     assert result.status_code == 200
-    found = result.json()["products"][0]
-    assert found["id"] == product["id"]
+    # The suite shares one merchant.db, so other tests' apples can rank first.
+    found = next(p for p in result.json()["products"] if p["id"] == product["id"])
     assert found["marketName"] == "Agent Market"
     assert found["normalizedUnit"] == "mg"
     assert found["normalizedQuantityPerDollar"] is not None
