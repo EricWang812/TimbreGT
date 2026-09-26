@@ -390,6 +390,7 @@ main.route-enter h1 { font-size: 2.25rem; font-weight: 700; letter-spacing: -0.0
   border-radius: var(--radius-pill);
   font: 700 1rem/1.2 var(--font-body);
   text-decoration: none;
+  cursor: pointer;
   transition: background-color var(--dur-fast) var(--ease-out), border-color var(--dur-fast) var(--ease-out);
 }
 .chip:hover { background: var(--tint); border-color: var(--ink); }   /* --ink on --tint 8.58:1 */

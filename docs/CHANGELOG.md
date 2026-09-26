@@ -24,6 +24,28 @@ alternatives considered and why they were rejected.
 
 ---
 
+### 2026-09-26 10:10 - Full demo run: fixes for the details (a11y review, titles, favicon, cart races)
+
+- **Files:** web/index.html, web/public/favicon.svg (new), web/src/App.jsx, web/src/lib/{cart.jsx,api.js}, web/src/components/{VoiceShopping,ProductCard,CartDrawer,SiteHeader}.jsx, web/src/components/CheckoutSteps.jsx (new), web/src/pages/{Shop,Checkout,Receipt}.jsx, web/src/styles.css, web/src/styles/checkout.css, api/catalog.py (`GET /store`), tests/test_shopping.py. Most of these landed in the teammate commit "2:55 am" (2cd529c) without an entry; this entry covers them and the remaining Shop.jsx changes.
+- **What:** From a scripted end-to-end run in the browser plus an independent accessibility review:
+  - The store had no favicon (404) and one page title everywhere. It now has an SVG favicon, a theme color, a description, and a title per route (WCAG 2.4.2).
+  - Cart updates were computed from the rendered state, so taps faster than a re-render were lost. They are now functional (`adjust`).
+  - "Added one X" was announced twice. The voice panel's status line is now the only channel.
+  - A suggestion at the maximum quantity silently dropped focus. "Yes" now uses `aria-disabled`, and both the question and a press explain why.
+  - Spoken readback could overlap a screen reader. A remembered "Read suggestions aloud after I speak" switch now controls it, and "Say it again" stays available.
+  - The card and drawer steppers handled the maximum differently. Both now use `aria-disabled` and announce the limit.
+  - The drawer's quantity used a prohibited `aria-label` on a span. It now uses visually hidden text.
+  - The header's "Shop by voice" was a link, hidden below 900px. It is now a button, icon-only below 600px.
+  - Aisle chips were links that never navigated. They are now buttons.
+  - The receipt had no step list and a table that could not reflow at 320px (WCAG 1.4.10). Both are fixed; the step list is shared as `CheckoutSteps`.
+  - The hero's "$35" was a second copy of the merchant threshold. It now comes from `GET /store` and the pill hides if that fails.
+  - The footer credit now links Open Food Facts and the CC BY-SA 3.0 license, and says prices are illustrative.
+- **Why:** The user asked for a full test pass with attention to the small details.
+- **Verify:** `make test` (132 passed); `npm --prefix web run build`. Browser checks: at 20 the stepper is `aria-disabled` with a visible note; back at 0, focus returns to Add; Escape and Remove handle focus; Cancel in the bank widget returns focus to Approve with a message; `/checkout/complete` returned 40 bytes (`verified`, `transaction_id` only); Baseline audio is served; bad routes and bad receipt ids degrade cleanly; the phone header stays 64px with a 44px voice button.
+- **Risk/Notes:** Not verifiable headless: real microphone capture, Windows Hello, and a screen reader's handling of "Payment approved" versus the receipt heading focus (review item 8, left for a manual NVDA check).
+
+---
+
 ### 2026-09-26 08:30 - Storefront redesign with purposeful motion
 
 - **Files:** web/src/pages/{Shop,Checkout,Receipt}.jsx, web/src/components/{SiteHeader,VoiceShopping,CartDrawer,Icons}.jsx, web/src/components/ProductCard.jsx (new), web/src/components/jump.js (new), web/src/styles.css, web/src/styles/checkout.css. Built by two helper agents in parallel with strict file ownership, then integrated and reviewed.
