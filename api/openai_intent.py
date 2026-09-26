@@ -307,6 +307,11 @@ them, and never list ingredients there.
 When one budget covers everything ("keep it all under $20"), put it in
 totalBudget with per total, and leave each item's maxPrice empty unless that item
 has its own limit. Otherwise totalBudget is null with confidence missing.
+A limit spoken with one product belongs to that product alone, never to
+totalBudget: "as much yogurt as I can get for ten dollars, and two cokes" is
+yogurt with maxPrice 10 and Coca-Cola with no limit, and totalBudget is null.
+Use totalBudget only when the words say the limit covers everything ("all",
+"in total", "altogether", or a limit said after the whole list).
 
 If the request is too vague to choose anything ("something for dinner", "some
 food"), return no items and no meals, with intent unclear. If it is not about shopping, use intent

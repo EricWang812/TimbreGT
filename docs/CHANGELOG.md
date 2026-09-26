@@ -24,6 +24,14 @@ alternatives considered and why they were rejected.
 
 ---
 
+### 2026-09-26 13:50 - Live OpenAI round trip; keep a one-item limit off the basket budget
+
+- **Files:** api/openai_intent.py, docs/CHANGELOG.md.
+- **What:** First live round trip with the real key: a synthetic (Windows TTS, typical speech) 16 kHz WAV transcribed word for word in 1.2 s, extraction takes about 3 to 4 s. It exposed a bug: "as much yogurt as I can get for ten dollars, and two Cokes" also set totalBudget 10, so the Cokes ($9.98) left $0.02 and the yogurt was dropped. The basket prompt now says a limit spoken with one product is that item's maxPrice only, with this example, and totalBudget needs words that cover everything.
+- **Why:** The prompt said when to use totalBudget but not when not to, and the model copied the item limit into it.
+- **Verify:** Live: that transcript now gives 6 yogurts ($8.94) plus 2 Coke six-packs; "tuna salad and two cokes, under 20 bucks" and "milk, eggs, and bread, keep it all under 15 dollars" still set totalBudget. `make test` (340 passed; prompt text is not unit-tested, provider calls are mocked).
+- **Risk/Notes:** Catalog no longer has bananas or Bose (10 grocery aisles since 29aa242), so the older banana and headphone results in AGENTS.md now correctly report "not sold here". Open: a basket over its total budget is shown for removal rather than re-picked with cheaper items ($16.27 against $15 when cheaper milk exists). Not yet spoken through the browser by a person.
+
 ### 2026-09-26 13:35 - Fix shared-DB marketplace test; pin market tables to the boundary
 
 - **Files:** tests/test_marketplace_catalog.py, tests/test_boundary.py, docs/CHANGELOG.md.
