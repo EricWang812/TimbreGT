@@ -8,16 +8,20 @@
 
 :root {
   /* Store surface */
-  --bg: #ecfdf5;
+  --bg: #faf8f4;              /* warm sand */
   --surface: #ffffff;
-  --text: #0f172a;            /* 16.95:1 on --bg */
-  --ink: #064e3b;             /* 9.23:1 on --bg, 9.72:1 on white: headings, prices */
-  --text-muted: #475569;      /* 7.19:1 on --bg, 7.58:1 on white */
-  --primary: #047857;         /* white text on it: 5.48:1 */
+  --text: #0f172a;            /* 16.83:1 on --bg */
+  --ink: #064e3b;             /* 9.16:1 on --bg, 9.72:1 on white: headings, prices */
+  --text-muted: #475569;      /* 7.14:1 on --bg, 7.58:1 on white */
+  --primary: #047857;         /* white text on it: 5.48:1; as text 5.17:1 on --bg */
   --primary-hover: #065f46;   /* white text on it: 7.68:1 */
-  --control-border: #5f7a70;  /* 4.66:1 on white, 4.43:1 on --bg */
-  --divider: #d1e7dd;         /* decorative only, never a control boundary */
-  --focus: #0b2545;           /* 14.61:1 on --bg, 15.39:1 on white */
+  --control-border: #5f7a70;  /* 4.66:1 on white, 4.40:1 on --bg (non-text needs 3:1) */
+  --divider: #e7e2d8;         /* decorative only, never a control boundary */
+  --skeleton: #ece8df;        /* image wells and loading placeholders, decorative */
+  --tint: #e6f4ee;            /* chips, badges, steppers: --ink 8.58:1, #065f46 6.78:1 */
+  --band: #0e4f47;            /* kelp teal hero band: white 9.43:1 */
+  --band-muted: #d7f0e6;      /* on --band: 7.85:1 */
+  --focus: #0b2545;           /* 14.51:1 on --bg, 15.39:1 on white; white ring inside --band */
   --error: #b91c1c;           /* 6.47:1 on white */
   --ok: #047857;              /* 5.48:1 on white */
 
@@ -36,6 +40,7 @@
   --radius: 12px;
   --radius-small: 8px;
   --tap: 44px;
+  --header-h: 64px;           /* sticky header height; the aisle chips stick below it */
   --space-1: 0.25rem;
   --space-2: 0.5rem;
   --space-3: 0.75rem;
@@ -43,7 +48,18 @@
   --space-6: 1.5rem;
   --space-8: 2rem;
   --shadow: 0 1px 2px rgb(15 23 42 / 0.08), 0 4px 12px rgb(15 23 42 / 0.06);
+  --shadow-1: 0 1px 2px rgb(15 23 42 / 0.06);
+  --shadow-2: 0 4px 8px -2px rgb(15 23 42 / 0.10), 0 12px 24px -6px rgb(15 23 42 / 0.12);
+  --shadow-drawer: -16px 0 40px rgb(15 23 42 / 0.18);
+  --radius-card: 16px;
+  --radius-pill: 999px;
   --ease: 180ms ease-out;
+  /* Motion (brief §3): enter with ease-out, exit with ease-in, exits shorter. */
+  --dur-fast: 150ms;
+  --dur-base: 200ms;
+  --dur-slow: 280ms;
+  --ease-out: cubic-bezier(.2, 0, 0, 1);
+  --ease-in: cubic-bezier(.4, 0, 1, 1);
 
   font-family: var(--font-body);
   font-size: 1.125rem;        /* 18px base: larger than default for low-vision users */
@@ -107,16 +123,39 @@ p { margin: 0; }
   border: 2px solid transparent;
   cursor: pointer;
   text-decoration: none;
-  transition: background-color var(--ease), border-color var(--ease);
+  /* A2: hover is a color change only, so it stays under reduced motion. */
+  transition:
+    background-color var(--dur-fast) var(--ease-out),
+    border-color var(--dur-fast) var(--ease-out),
+    color var(--dur-fast) var(--ease-out);
 }
 .btn:disabled { cursor: not-allowed; opacity: 0.6; }
 .btn svg { flex: none; }  /* never squeeze an icon to nothing in a tight row */
 .btn-primary { background: var(--primary); color: #ffffff; }
 .btn-primary:hover:not(:disabled) { background: var(--primary-hover); }
 .btn-secondary { background: var(--surface); color: var(--ink); border-color: var(--control-border); }
-.btn-secondary:hover:not(:disabled) { border-color: var(--ink); }
+.btn-secondary:hover:not(:disabled) { border-color: var(--ink); background: var(--tint); }  /* --ink on --tint 8.58:1 */
 .btn-large { min-height: 56px; padding: var(--space-3) var(--space-6); font-size: 1.125rem; }
 .btn-block { width: 100%; }
+
+/* A1: store buttons press in slightly. The bank's buttons (.btn-bank*,
+   .btn-record) are a different party's surface and keep their own feel. */
+@media (prefers-reduced-motion: no-preference) {
+  .btn:not(.btn-bank, .btn-bank-quiet, .btn-record), .qty-btn {
+    transition:
+      background-color var(--dur-fast) var(--ease-out),
+      border-color var(--dur-fast) var(--ease-out),
+      color var(--dur-fast) var(--ease-out),
+      scale 100ms var(--ease-out);
+  }
+  .btn:not(.btn-bank, .btn-bank-quiet, .btn-record):active:not(:disabled, [aria-disabled="true"]),
+  .qty-btn:active:not([aria-disabled="true"]) { scale: 0.97; }
+}
+
+/* A17: each route mounts a fresh <main> (App.jsx key), which fades in. Opacity
+   only, so it also plays under reduced motion. */
+.route-enter { transition: opacity var(--dur-fast) var(--ease-out); }
+@starting-style { .route-enter { opacity: 0; } }
 
 /* --- Header ----------------------------------------------------------------- */
 
@@ -125,7 +164,19 @@ p { margin: 0; }
   top: 0;
   z-index: 5;
   background: var(--surface);
-  border-bottom: 1px solid var(--divider);
+  /* A9 fallback: a static 1px divider. A box-shadow, so the header stays 64px. */
+  box-shadow: 0 1px 0 var(--divider);
+}
+/* A9: the shadow grows over the first 64px of scroll. Never hides on scroll. */
+@supports (animation-timeline: scroll()) {
+  .site-header {
+    animation: header-shadow linear both;
+    animation-timeline: scroll();
+    animation-range: 0 64px;
+  }
+}
+@keyframes header-shadow {
+  to { box-shadow: 0 1px 0 var(--divider), var(--shadow-1), 0 6px 16px -8px rgb(15 23 42 / 0.16); }
 }
 .site-header-inner {
   display: flex;
@@ -133,9 +184,38 @@ p { margin: 0; }
   justify-content: space-between;
   gap: var(--space-4);
   max-width: 72rem;
+  min-height: var(--header-h);
   margin: 0 auto;
-  padding: var(--space-3) var(--space-4);
+  padding: var(--space-2) var(--space-4);
 }
+.header-actions { display: flex; align-items: center; gap: var(--space-6); }
+.header-voice {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-2);
+  min-height: var(--tap);
+  min-width: var(--tap);
+  padding: 0 var(--space-3);
+  border: 2px solid var(--control-border);   /* 4.66:1 on white */
+  border-radius: var(--radius-pill);
+  background: var(--surface);
+  color: var(--ink);                          /* 9.72:1 on white */
+  font: 700 1rem/1 var(--font-body);
+  cursor: pointer;
+  transition: background-color var(--dur-fast) var(--ease-out);
+}
+.header-voice:hover { background: var(--tint); }
+@media (max-width: 599px) {
+  .header-actions { gap: var(--space-3); }
+  .header-voice { padding: 0; }
+  .header-voice-text {             /* icon-only, but still the button's name */
+    position: absolute; width: 1px; height: 1px; overflow: hidden;
+    clip-path: inset(50%); white-space: nowrap;
+  }
+}
+/* padding-block keeps the badge inside a 44px button, so the header is exactly --header-h. */
+.cart-button { border-radius: var(--radius-pill); padding-block: var(--space-1); padding-inline: var(--space-4) var(--space-2); }
 .brand {
   display: inline-flex;
   align-items: center;
@@ -154,93 +234,355 @@ p { margin: 0; }
   padding: 0 var(--space-2);
   border-radius: 999px;
   background: #ffffff;
-  color: var(--primary-hover);
+  color: var(--primary-hover);   /* 7.68:1 on white */
   font-weight: 700;
+  font-variant-numeric: tabular-nums;
 }
+/* A5: key={bumps} in SiteHeader remounts the badge when the count goes up. */
+@media (prefers-reduced-motion: no-preference) {
+  .cart-count[data-bump] { animation: badge-bump 250ms var(--ease-out); }
+}
+@keyframes badge-bump { 40% { scale: 1.25; } }
 
 main { max-width: 72rem; margin: 0 auto; padding: var(--space-6) var(--space-4) var(--space-8); }
+/* Store page titles (the bank's pages keep their own size). */
+main.route-enter h1 { font-size: 2.25rem; font-weight: 700; letter-spacing: -0.01em; }
+@media (max-width: 599px) { main.route-enter h1 { font-size: 1.75rem; } }
 .page-intro { display: grid; gap: var(--space-2); margin-bottom: var(--space-6); }
 .page-intro p { color: var(--text-muted); }
+
+/* --- Market band: the one hero, whose content is the voice panel ------------- */
+
+.market-band {
+  display: grid;
+  gap: var(--space-6);
+  margin-top: calc(-1 * var(--space-6));   /* sit flush under the header */
+  margin-bottom: var(--space-6);
+  padding-block: 20px 24px;
+  color: #ffffff;
+  background: var(--band);
+  /* Full-bleed paint without 100vw (which overflows by the scrollbar width):
+     the border image extends past the sides as ink overflow, which never scrolls. */
+  border-image-source: linear-gradient(var(--band), var(--band));
+  border-image-slice: 0 fill;
+  border-image-outset: 0 100vw;
+}
+@media (min-width: 900px) {
+  .market-band {
+    grid-template-columns: minmax(0, 5fr) minmax(0, 7fr);
+    align-items: center;
+    gap: var(--space-8);
+    padding-block: 32px;
+  }
+  .market-band.is-single { grid-template-columns: minmax(0, 1fr); }
+}
+.market-band h1 { color: #ffffff; }                   /* 9.43:1 on --band */
+.market-band :focus-visible { outline-color: #ffffff; }  /* 9.43:1 on --band */
+.band-intro { display: grid; gap: var(--space-4); align-content: center; }
+.band-lead { color: var(--band-muted); max-width: 34ch; }  /* 7.85:1 on --band */
+.fact-pills { list-style: none; margin: 0; padding: 0; display: flex; flex-wrap: wrap; gap: var(--space-2); }
+.fact-pills li {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  padding: var(--space-1) var(--space-4) var(--space-1) var(--space-3);
+  border: 1.5px solid rgb(255 255 255 / 0.45);   /* decorative outline */
+  border-radius: var(--radius-pill);
+  color: #ffffff;                                  /* 9.43:1 on --band */
+  font-weight: 600;
+  font-size: 0.9375rem;
+}
+.fact-pills svg { flex: none; color: var(--band-muted); }
+
+/* --- Voice shopping: a white card inside the band --------------------------- */
+
+.voice-shopping {
+  display: grid;
+  gap: var(--space-4);
+  align-content: start;
+  padding: var(--space-6);
+  background: var(--surface);
+  color: var(--text);
+  border-radius: var(--radius-card);
+  box-shadow: var(--shadow-2);
+}
+.market-band .voice-shopping :focus-visible { outline-color: var(--focus); }  /* 15.39:1 on white */
+@media (max-width: 599px) { .voice-shopping { padding: 20px var(--space-4); } }
+.voice-intro { display: grid; gap: var(--space-2); }
+.voice-explain { color: var(--text-muted); font-size: 0.9375rem; }   /* 7.58:1 on white */
+.voice-shopping .btn { border-radius: var(--radius-pill); }
+.voice-shopping-actions { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-3); }
+.voice-mic { min-height: 56px; padding-inline: var(--space-6); font-size: 1.125rem; }
+/* EXTRA: a soft ring pulses around the mic while it records (stops within 10s
+   or on Stop). Box-shadow only, and only when motion is welcome. */
+@media (prefers-reduced-motion: no-preference) {
+  .voice-mic.is-recording { animation: mic-ring 1.6s var(--ease-out) infinite; }
+}
+@keyframes mic-ring {
+  from { box-shadow: 0 0 0 0 rgb(4 120 87 / 0.45); }
+  to { box-shadow: 0 0 0 14px rgb(4 120 87 / 0); }
+}
+/* A13: visible "Recording" text next to a dot that fades in and out. */
+.rec-indicator { display: inline-flex; align-items: center; gap: var(--space-2); font-weight: 700; color: var(--error); }  /* 6.47:1 on white */
+.rec-dot { width: 12px; height: 12px; border-radius: 50%; background: var(--error); animation: rec-pulse 1.6s ease-in-out infinite; }
+@keyframes rec-pulse { 50% { opacity: 0.35; } }
+
+.voice-type { display: grid; gap: var(--space-2); padding-top: var(--space-4); border-top: 1px solid var(--divider); }
+.voice-type label { font-weight: 700; }
+.voice-type-row { display: grid; gap: var(--space-3); }
+@media (min-width: 600px) { .voice-type-row { grid-template-columns: minmax(0, 1fr) auto; } }
+.voice-type input {
+  min-height: 48px;
+  width: 100%;
+  padding: var(--space-2) var(--space-3);
+  font: inherit;
+  color: var(--text);
+  background: var(--surface);
+  border: 1.5px solid var(--control-border);   /* 4.66:1 on white */
+  border-radius: 10px;
+}
+.voice-type input:disabled { background: var(--bg); }
+.voice-type-row .btn { min-height: 48px; }
+.voice-status { font-weight: 600; }
+
+.voice-suggestion {
+  display: grid;
+  gap: var(--space-3);
+  padding: var(--space-4);
+  background: var(--bg);   /* text 16.83:1, muted 7.14:1, --ink 9.16:1 */
+  border: 1px solid var(--divider);
+  border-radius: var(--radius);
+}
+.voice-suggestion-item { display: flex; align-items: center; gap: var(--space-3); }
+.voice-suggestion-photo {
+  flex: none;
+  width: 64px;
+  height: 64px;
+  padding: var(--space-1);
+  object-fit: contain;
+  background: #ffffff;
+  border: 1px solid var(--divider);
+  border-radius: 10px;
+}
+.voice-suggestion-name { font-weight: 700; line-height: 1.35; }
+/* A12: the suggestion fades in; it also rises 6px when motion is welcome. */
+.voice-suggestion { transition: opacity var(--dur-base) var(--ease-out); }
+@starting-style { .voice-suggestion { opacity: 0; } }
+@media (prefers-reduced-motion: no-preference) {
+  .voice-suggestion { transition: opacity var(--dur-base) var(--ease-out), translate var(--dur-base) var(--ease-out); }
+  @starting-style { .voice-suggestion { translate: 0 6px; } }
+}
+.voice-placeholder { min-height: 22rem; animation: skeleton-pulse 1.6s ease-in-out infinite; }
+
+/* --- Aisle chips ----------------------------------------------------------- */
+
+.aisle-nav { margin-bottom: var(--space-6); }
+.aisle-chips { list-style: none; margin: 0; padding: 0; display: flex; flex-wrap: wrap; gap: var(--space-2); }
+.chip {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  min-height: var(--tap);
+  padding: 0 var(--space-2) 0 var(--space-4);
+  background: var(--surface);
+  color: var(--ink);                              /* 9.72:1 on white */
+  border: 1.5px solid var(--control-border);      /* 4.66:1 on white, 4.40:1 on --bg */
+  border-radius: var(--radius-pill);
+  font: 700 1rem/1.2 var(--font-body);
+  text-decoration: none;
+  transition: background-color var(--dur-fast) var(--ease-out), border-color var(--dur-fast) var(--ease-out);
+}
+.chip:hover { background: var(--tint); border-color: var(--ink); }   /* --ink on --tint 8.58:1 */
+.chip-count {
+  display: inline-grid;
+  place-items: center;
+  min-width: 1.75rem;
+  height: 1.75rem;
+  padding: 0 var(--space-2);
+  border-radius: var(--radius-pill);
+  background: var(--tint);
+  color: var(--ink);                              /* 8.58:1 on --tint */
+  font-size: 0.875rem;
+  font-variant-numeric: tabular-nums;
+}
+.chip:hover .chip-count { background: var(--surface); }
+/* Sticky below the header only where there is room for both bars. The larger
+   scroll padding keeps focused items clear of both (WCAG 2.4.11). */
+@media (min-width: 900px) and (min-height: 720px) {
+  html:has(.aisle-nav) { scroll-padding-top: 8.5rem; }
+  .aisle-nav {
+    position: sticky;
+    top: var(--header-h);
+    z-index: 4;
+    padding-block: var(--space-2);
+    background: var(--bg);
+    /* Full-bleed bar with a 1px divider at its foot (same ink-overflow trick as the band). */
+    border-image-source: linear-gradient(to top, var(--divider) 1px, var(--bg) 1px);
+    border-image-slice: 0 fill;
+    border-image-outset: 0 100vw;
+  }
+}
 
 /* --- Catalog ---------------------------------------------------------------- */
 
 .category { margin-bottom: var(--space-8); }
-.category h2 { margin-bottom: var(--space-4); }
+.section-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: var(--space-1) var(--space-3);
+  margin-bottom: var(--space-4);
+}
+.section-head h2 { font-size: 1.5rem; font-weight: 700; }
+.section-count { color: var(--text-muted); font-size: 0.9375rem; }   /* 7.14:1 on --bg */
+
 .product-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(13rem, 1fr));
-  gap: var(--space-4);
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
   list-style: none;
   margin: 0;
   padding: 0;
 }
+.product-grid > li { display: flex; min-width: 0; }
+.product-grid > li > * { flex: 1; min-width: 0; }
+@media (min-width: 600px) { .product-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 16px; } }
+@media (min-width: 900px) { .product-grid { grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 20px; } }
+@media (min-width: 1200px) { .product-grid { grid-template-columns: repeat(5, minmax(0, 1fr)); } }
+
+/* Product card: a 1px border, no shadow, no hover lift (the card is not a link). */
 .product-card {
+  position: relative;
   display: flex;
   flex-direction: column;
-  height: 100%;
-  background: var(--surface);
-  border-radius: var(--radius);
-  box-shadow: var(--shadow);
-  overflow: hidden;
-}
-.product-photo {
-  aspect-ratio: 1;
-  width: 100%;
-  object-fit: contain;
-  background: #ffffff;
+  gap: var(--space-3);
   padding: var(--space-3);
-  border-bottom: 1px solid var(--divider);
+  background: var(--surface);
+  border: 1px solid var(--divider);
+  border-radius: var(--radius-card);
 }
-.product-body { display: flex; flex-direction: column; gap: var(--space-1); flex: 1; padding: var(--space-4); }
-.product-brand { color: var(--text-muted); font-size: 0.9375rem; }
-.product-size { color: var(--text-muted); font-size: 0.9375rem; }
-.product-footer {
-  display: flex;
+/* A10: the photo fades in over the skeleton tint once loaded. */
+.product-well {
+  position: relative;
+  aspect-ratio: 1;
+  overflow: hidden;
+  border-radius: var(--radius);
+  background: var(--skeleton);
+  transition: background-color var(--dur-base) var(--ease-out);
+}
+.product-well[data-loaded] { background: #ffffff; }
+.product-photo {
+  width: 100%;
+  height: 100%;
+  padding: var(--space-3);
+  object-fit: contain;
+  opacity: 0;
+  transition: opacity var(--dur-base) var(--ease-out);
+}
+.product-well[data-loaded] .product-photo { opacity: 1; }
+/* EXTRA: on hover the photo grows slightly inside its well; the card stays put. */
+@media (hover: hover) and (prefers-reduced-motion: no-preference) {
+  .product-photo { transition: opacity var(--dur-base) var(--ease-out), scale var(--dur-slow) var(--ease-out); }
+  .product-card:hover .product-photo { scale: 1.04; }
+}
+
+/* A4: "In cart: 2" with a check icon, so it never relies on color. */
+.in-cart-badge {
+  position: absolute;
+  top: calc(var(--space-3) + var(--space-2));
+  left: calc(var(--space-3) + var(--space-2));
+  z-index: 1;
+  display: inline-flex;
   align-items: center;
-  justify-content: space-between;
-  gap: var(--space-2);
-  margin-top: auto;
-  padding-top: var(--space-3);
+  gap: var(--space-1);
+  padding: 2px 10px 2px 8px;
+  border-radius: var(--radius-pill);
+  background: var(--tint);
+  color: var(--primary-hover);                    /* 6.78:1 on --tint */
+  box-shadow: var(--shadow-1);
+  font-size: 0.875rem;
+  font-weight: 700;
+  transition: opacity var(--dur-base) var(--ease-out);
 }
-.price { font: 700 1.25rem/1 var(--font-heading); color: var(--ink); }
-.in-cart-note { color: var(--ok); font-weight: 600; font-size: 0.9375rem; }
+@starting-style { .in-cart-badge { opacity: 0; } }
+@media (prefers-reduced-motion: no-preference) {
+  .in-cart-badge { transition: opacity var(--dur-base) var(--ease-out), translate var(--dur-base) var(--ease-out); }
+  @starting-style { .in-cart-badge { translate: 0 -4px; } }
+}
 
-/* --- Cart drawer (native <dialog>: focus trap and Escape come for free) ------ */
+.product-body { display: flex; flex-direction: column; gap: 2px; flex: 1; padding: 0 var(--space-1) var(--space-1); }
+.product-brand { color: var(--text-muted); font-size: 0.875rem; font-weight: 600; }   /* 7.58:1 on white */
+.product-name { font: 600 1rem/1.35 var(--font-body); color: var(--text); }
+.product-size { color: var(--text-muted); font-size: 0.875rem; }
+.price { font: 700 1.375rem/1.2 var(--font-heading); color: var(--ink); font-variant-numeric: tabular-nums; }
+.product-price { margin-top: var(--space-2); }
+.product-action { display: grid; gap: var(--space-1); margin-top: auto; padding-top: var(--space-3); }
+.btn-add { width: 100%; border-radius: var(--radius-pill); }
 
-.cart-dialog {
-  margin: 0 0 0 auto;
-  width: min(28rem, 100vw);
-  height: 100vh;
-  max-height: 100vh;
+/* Add becomes a [- N +] stepper after the first add. A3: it fades in. */
+.qty-stepper {
+  display: grid;
+  grid-template-columns: var(--tap) minmax(0, 1fr) var(--tap);
+  align-items: center;
+  border: 1.5px solid var(--control-border);      /* 4.66:1 on white */
+  border-radius: var(--radius-pill);
+  background: var(--tint);
+  transition: opacity var(--dur-fast) var(--ease-out);
+}
+@starting-style { .qty-stepper { opacity: 0; } }
+.qty-btn {
+  display: inline-grid;
+  place-items: center;
+  width: var(--tap);
+  height: var(--tap);
   padding: 0;
   border: none;
-  background: var(--surface);
-  color: var(--text);
-  box-shadow: -8px 0 24px rgb(15 23 42 / 0.15);
+  border-radius: 50%;
+  background: transparent;
+  color: var(--ink);                              /* 8.58:1 on --tint */
+  cursor: pointer;
+  transition: background-color var(--dur-fast) var(--ease-out);
 }
-.cart-dialog::backdrop { background: rgb(15 23 42 / 0.45); }
-.drawer { display: flex; flex-direction: column; height: 100%; }
-.drawer-header {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  padding: var(--space-4);
-  border-bottom: 1px solid var(--divider);
-}
-.drawer-body { flex: 1; overflow-y: auto; padding: var(--space-4); }
-.drawer-footer { display: grid; gap: var(--space-3); padding: var(--space-4); border-top: 1px solid var(--divider); }
+.qty-btn:hover:not([aria-disabled="true"]) { background: var(--surface); }
+.qty-btn[aria-disabled="true"] { cursor: not-allowed; opacity: 0.45; }
+.qty-value { text-align: center; font: 700 1.125rem/1 var(--font-heading); color: var(--ink); font-variant-numeric: tabular-nums; }
+.product-limit { color: var(--text-muted); font-size: 0.875rem; text-align: center; }
 
-.cart-lines { list-style: none; margin: 0; padding: 0; display: grid; gap: var(--space-4); }
-.cart-line { display: grid; grid-template-columns: 4rem 1fr; gap: var(--space-3); align-items: start; }
-.cart-line img { width: 4rem; height: 4rem; object-fit: contain; border-radius: var(--radius-small); border: 1px solid var(--divider); }
-.stepper { display: flex; align-items: center; gap: var(--space-2); margin-top: var(--space-2); }
-.stepper .quantity { min-width: 2ch; text-align: center; font-weight: 700; }
+/* Sections with one or two items: wide cards, photo on the left, so the row
+   is not mostly empty. */
+@media (min-width: 900px) {
+  .product-grid.is-feature { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .is-feature .product-card { flex-direction: row; gap: var(--space-4); }
+  .is-feature .product-well { flex: none; align-self: flex-start; width: 12rem; }
+  .is-feature .product-body { padding: var(--space-2) var(--space-2) var(--space-1) 0; }
+  .is-feature .product-action { max-width: 18rem; }
+}
+
+/* A11: placeholder cards while the catalog loads (aria-hidden). */
+.skeleton-line { display: block; height: 0.875rem; margin-block: var(--space-1); border-radius: 6px; background: var(--skeleton); }
+.skeleton-pill { display: block; height: var(--tap); margin-top: auto; border-radius: var(--radius-pill); background: var(--skeleton); }
+.is-skeleton .product-card { min-height: 100%; animation: skeleton-pulse 1.6s ease-in-out infinite; }
+@keyframes skeleton-pulse { 50% { opacity: 0.55; } }
+
+/* EXTRA: first load only, cards fade and rise 8px in a short stagger (delay
+   capped in Shop.jsx so everything lands within about 500ms). Shop.jsx removes
+   the class on a timer, so cart changes never replay it. */
+@media (prefers-reduced-motion: no-preference) {
+  .product-grid.is-entering .product-card {
+    animation: card-enter var(--dur-slow) var(--ease-out) var(--enter-delay, 0ms) both;
+  }
+}
+@keyframes card-enter { from { opacity: 0; translate: 0 8px; } }
+@media (prefers-reduced-motion: reduce) {
+  .product-grid.is-entering .product-card { transition: opacity var(--dur-base) var(--ease-out); }
+  @starting-style { .product-grid.is-entering .product-card { opacity: 0; } }
+}
+
+/* The cart drawer's styles live in styles/checkout.css. */
 
 /* --- Checkout and receipt ------------------------------------------------- */
 
 .panel { background: var(--surface); border-radius: var(--radius); box-shadow: var(--shadow); padding: var(--space-6); }
-.checkout-layout { display: grid; gap: var(--space-6); grid-template-columns: minmax(0, 1fr); }
-@media (min-width: 900px) { .checkout-layout { grid-template-columns: minmax(0, 3fr) minmax(0, 2fr); } }
 
 .summary { width: 100%; border-collapse: collapse; }
 .summary th, .summary td { padding: var(--space-2) 0; text-align: left; vertical-align: top; }
@@ -257,17 +599,6 @@ main { max-width: 72rem; margin: 0 auto; padding: var(--space-6) var(--space-4) 
 .message-error { color: var(--error); font-weight: 600; }
 .message-ok { color: var(--ok); font-weight: 600; }
 .stack { display: grid; gap: var(--space-4); align-content: start; }  /* no stretched rows in tall panels */
-.status-banner {
-  display: flex;
-  align-items: center;
-  gap: var(--space-3);
-  padding: var(--space-4);
-  border-radius: var(--radius-small);
-  border: 2px solid var(--ok);
-  background: #ffffff;
-  color: var(--ok);
-  font-weight: 700;
-}
 .mono { font-family: ui-monospace, "Cascadia Mono", Consolas, monospace; font-size: 0.9375rem; word-break: break-all; }
 
 /* --- Issuer widget: the bank's surface ------------------------------------ */
@@ -382,7 +713,15 @@ main { max-width: 72rem; margin: 0 auto; padding: var(--space-6) var(--space-4) 
 .bank-body p svg, .status-banner svg { flex: none; vertical-align: -4px; }
 .bank-muted svg { margin-right: var(--space-1); }
 
-.site-footer { max-width: 72rem; margin: 0 auto; padding: 0 var(--space-4) var(--space-8); }
+.site-footer {
+  display: grid;
+  gap: var(--space-1);
+  max-width: 72rem;
+  margin: 0 auto;
+  padding: var(--space-6) var(--space-4) var(--space-8);
+  border-top: 1px solid var(--divider);
+}
+.site-footer a { display: inline-flex; align-items: center; min-height: var(--tap); }
 a { color: var(--ink); text-underline-offset: 3px; }
 a:hover { text-decoration-thickness: 2px; }
 pre.mono {
@@ -396,22 +735,35 @@ pre.mono {
 
 @media (max-width: 480px) {
   h1 { font-size: 1.625rem; }
-  /* rem is 18px here, so 8.5rem (153px) fits two columns in a 375px viewport */
-  .product-grid { grid-template-columns: repeat(auto-fill, minmax(8.5rem, 1fr)); gap: var(--space-3); }
-  .product-body { padding: var(--space-3); }
-  .product-footer { flex-wrap: wrap; }
   .brand { font-size: 1.125rem; }
+  .cart-button { padding-inline: var(--space-3) var(--space-2); }
 }
 
+/* aria-disabled buttons stay focusable and explain themselves when pressed. */
+.btn[aria-disabled="true"] { opacity: 0.55; cursor: not-allowed; }
+.btn[aria-disabled="true"]:active { scale: none; }
+.voice-readaloud {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  min-height: var(--tap);
+  margin-top: var(--space-2);
+  font-size: 0.9375rem;
+  color: var(--text-muted);     /* 7.58:1 on white */
+  cursor: pointer;
+}
+.voice-readaloud input { width: 20px; height: 20px; accent-color: var(--primary); }
+
+/* WCAG 2.3.3: under reduced motion nothing moves or scales. Color and opacity
+   changes are not motion, so fades stay. Never tie state to animationend or
+   transitionend: they do not fire when animation is off. */
 @media (prefers-reduced-motion: reduce) {
-  *, *::before, *::after { animation: none !important; transition: none !important; }
+  *, *::before, *::after {
+    animation: none !important;
+    transition-property: opacity, color, background-color, border-color, box-shadow, display, overlay !important;
+    scroll-behavior: auto !important;
+  }
 }
-
-/* Merchant voice shopping keeps repair choices reachable by keyboard/touch. */
-.voice-shopping { margin-block: 2rem; padding: 1.5rem; border: 1px solid currentColor; border-radius: 1rem; }
-.voice-shopping form { max-width: 32rem; }
-.voice-shopping input { min-height: 44px; width: 100%; padding: .6rem; font: inherit; }
-.voice-shopping-actions { display: flex; flex-wrap: wrap; gap: .75rem; }
 
 /* Baseline comparison page (demo only) */
 .table-scroll { overflow-x: auto; }

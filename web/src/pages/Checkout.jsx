@@ -3,6 +3,7 @@
 // learns only {verified, transaction_id} (§2.5).
 import { useEffect, useRef, useState } from "react";
 import PageHeading from "../components/PageHeading.jsx";
+import CheckoutSteps from "../components/CheckoutSteps.jsx";
 import ApprovalWidget from "../issuer/ApprovalWidget.jsx";
 import { completeCheckout, confirmCheckout, quoteCart } from "../lib/api.js";
 import { useAnnounce } from "../lib/announce.jsx";
@@ -10,37 +11,77 @@ import { useCart } from "../lib/cart.jsx";
 import { formatCents } from "../lib/money.js";
 import { navigate } from "../lib/router.js";
 
-function Summary({ quote }) {
+const WIDE_QUERY = "(min-width: 900px)";
+
+// Two layouts with different reading orders (items first on wide screens,
+// the total and Approve first on phones), so the DOM order follows the
+// layout instead of CSS `order` reshuffling what a screen reader hears.
+function useWide() {
+  const [wide, setWide] = useState(() => window.matchMedia(WIDE_QUERY).matches);
+  useEffect(() => {
+    const mql = window.matchMedia(WIDE_QUERY);
+    const onChange = () => setWide(mql.matches);
+    onChange();
+    mql.addEventListener("change", onChange);
+    return () => mql.removeEventListener("change", onChange);
+  }, []);
+  return wide;
+}
+
+
+// Rows come from the server quote once it is ready (the prices that will be
+// charged); until then, from the cart itself, without prices.
+function ItemList({ quote, lines, products }) {
+  const rows = quote.status === "ready"
+    ? quote.lines.map((l) => ({
+      id: l.product_id, name: l.name, quantity: l.quantity, unit: l.unit_cents, total: l.line_cents,
+    }))
+    : lines.map((l) => ({ id: l.productId, name: products[l.productId]?.name, quantity: l.quantity }));
   return (
-    <table className="summary">
-      <caption className="visually-hidden">Order summary</caption>
-      <thead className="visually-hidden">
-        <tr><th scope="col">Item</th><th scope="col" className="amount">Amount</th></tr>
-      </thead>
+    <ul className="checkout-lines">
+      {rows.map((row) => {
+        const p = products[row.id];
+        return (
+          <li key={row.id} className="checkout-line">
+            {p
+              ? <img className="checkout-thumb" src={p.image_url} alt="" width="64" height="64" />
+              : <span className="checkout-thumb" aria-hidden="true" />}
+            <div className="checkout-line-info">
+              {p && <p className="checkout-line-brand">{p.brand}</p>}
+              <p className="checkout-line-name">{row.name ?? "Loading item…"}</p>
+              <p className="checkout-line-unit">
+                {row.unit === undefined ? `Quantity ${row.quantity}` : `${row.quantity} × ${formatCents(row.unit)}`}
+              </p>
+            </div>
+            <p className="checkout-line-total">{row.total === undefined ? "" : formatCents(row.total)}</p>
+          </li>
+        );
+      })}
+    </ul>
+  );
+}
+
+function Totals({ quote }) {
+  return (
+    <table className="checkout-totals">
+      <caption className="visually-hidden">Order totals</caption>
       <tbody>
-        {quote.lines.map((line) => (
-          <tr key={line.product_id}>
-            <td>{line.name}<br /><span className="note">{line.quantity} × {formatCents(line.unit_cents)}</span></td>
-            <td className="amount">{formatCents(line.line_cents)}</td>
-          </tr>
-        ))}
-      </tbody>
-      <tfoot>
-        <tr><th scope="row">Subtotal</th><td className="amount">{formatCents(quote.subtotal_cents)}</td></tr>
-        <tr><th scope="row">Tax</th><td className="amount">{formatCents(quote.tax_cents)}</td></tr>
+        <tr><th scope="row">Subtotal</th><td>{formatCents(quote.subtotal_cents)}</td></tr>
+        <tr><th scope="row">Tax</th><td>{formatCents(quote.tax_cents)}</td></tr>
         <tr>
           <th scope="row">Shipping</th>
-          <td className="amount">{quote.shipping_cents === 0 ? "Free" : formatCents(quote.shipping_cents)}</td>
+          <td>{quote.shipping_cents === 0 ? "Free" : formatCents(quote.shipping_cents)}</td>
         </tr>
-        <tr className="total"><th scope="row">Total</th><td className="amount">{formatCents(quote.total_cents)}</td></tr>
-      </tfoot>
+        <tr className="checkout-total-row"><th scope="row">Total</th><td>{formatCents(quote.total_cents)}</td></tr>
+      </tbody>
     </table>
   );
 }
 
-export default function Checkout() {
+export default function Checkout({ products = {} }) {
   const cart = useCart();
   const announce = useAnnounce();
+  const wide = useWide();
   const [quote, setQuote] = useState({ status: "loading" });
   const [attempt, setAttempt] = useState(null);       // {instructionId, sessionId} while the bank widget is open
   const [step, setStep] = useState("ready");          // ready | starting | awaiting-bank | completing | not-approved | error
@@ -107,7 +148,7 @@ export default function Checkout() {
 
   if (cart.lines.length === 0) {
     return (
-      <div className="stack">
+      <div className="checkout-empty">
         <PageHeading>Checkout</PageHeading>
         <p>Your cart is empty.</p>
         <p><a className="btn btn-secondary" href="#/">Back to the shop</a></p>
@@ -116,36 +157,54 @@ export default function Checkout() {
   }
 
   const busy = step === "starting" || step === "awaiting-bank" || step === "completing";
+  const itemsLabel = cart.count === 1 ? "1 item" : `${cart.count} items`;
+  const itemList = <ItemList quote={quote} lines={cart.lines} products={products} />;
 
   return (
     <>
-      <div className="page-intro">
+      <div className="checkout-intro">
+        <CheckoutSteps current="Checkout" />
         <PageHeading>Checkout</PageHeading>
       </div>
-      <div className="checkout-layout">
-        <section className="panel" aria-labelledby="summary-heading">
-          <h2 id="summary-heading">Your order</h2>
+      <div className="checkout-grid">
+        {wide && (
+          <section className="checkout-card checkout-items" aria-labelledby="items-heading">
+            <h2 id="items-heading">Your items</h2>
+            {itemList}
+          </section>
+        )}
+
+        <section className="checkout-card checkout-pay" aria-labelledby="pay-heading">
+          <h2 id="pay-heading">Order summary</h2>
           {quote.status === "loading" && <p aria-busy="true">Pricing your cart…</p>}
           {quote.status === "error" && <p className="message-error" role="alert">Prices could not load. Reload the page to try again.</p>}
-          {quote.status === "ready" && <Summary quote={quote} />}
-        </section>
-
-        <section className="panel stack" aria-labelledby="pay-heading">
-          <h2 id="pay-heading">Payment</h2>
-          <p>Your bank confirms it is you. Seaside Market only learns whether the payment went through.</p>
+          {quote.status === "ready" && <Totals quote={quote} />}
+          <p className="checkout-privacy">
+            Your bank confirms it is you. Seaside Market only learns whether the payment went through.
+          </p>
           {step === "not-approved" && (
             <p className="message-error">Your bank has not approved this payment. You can try again.</p>
           )}
           {step === "error" && (
             <p className="message-error">Something went wrong reaching the payment service. Please try again.</p>
           )}
-          <button type="button" ref={approveRef} className="btn btn-primary btn-large btn-block"
+          <button type="button" ref={approveRef} className="btn btn-primary btn-block checkout-cta"
             onClick={startApproval} disabled={quote.status !== "ready" || busy}>
             {busy ? "Waiting for your bank…" : quote.status === "ready"
               ? `Approve purchase, ${formatCents(quote.total_cents)}` : "Approve purchase"}
           </button>
-          <p><a href="#/">Keep shopping</a></p>
+          <p className="checkout-back"><a href="#/">Keep shopping</a></p>
         </section>
+
+        {!wide && (
+          <section className="checkout-card checkout-items" aria-labelledby="items-heading">
+            <h2 id="items-heading" className="visually-hidden">Your items</h2>
+            <details className="checkout-details">
+              <summary>Show {itemsLabel}</summary>
+              {itemList}
+            </details>
+          </section>
+        )}
       </div>
 
       {attempt && <ApprovalWidget sessionId={attempt.sessionId} onClose={bankClosed} />}

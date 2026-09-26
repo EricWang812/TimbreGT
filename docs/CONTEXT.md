@@ -18,7 +18,10 @@ i-vector and x-vector models; reported EER improvements of 15.07% and 22.75%);
 prosodic features plus out-of-domain augmentation (2023); MFCC and LFCC frame-
 level fusion (2024); temporal discriminative bottleneck embeddings (2025). A
 2015 paper already framed dysarthric speakers as excluded from speech-enabled
-biometric solutions.
+biometric solutions. Large-scale studies report ECAPA-class verification going
+from low single-digit EER on typical speech to roughly 16% to 43% on
+pathological speech (arXiv 2204.06450, 2406.06208): cite it as their finding,
+not ours. The full survey behind our accuracy work is `docs/RESEARCH.md`.
 
 **Exists (commercial).** Text-independent and passive voice biometrics are
 standard practice, with deployments at JPMorgan Chase, Wells Fargo, and TD Bank,
@@ -73,14 +76,16 @@ Run `make reset` between full rehearsals.
 
 1. **The wall (15 s).** Transcription-based baseline on dysarthric TORGO audio.
    It fails twice. Say: "In production, the next step is a phone call."
-2. **The fix (20 s).** Same speaker, same audio, Timbre verifies in under two
-   seconds. Show the score and the personal threshold on screen.
+2. **The fix (20 s).** Same speaker, same audio: on the Baseline page, the
+   same take shows Timbre's score above the speaker's personal threshold. The
+   bank widget records only from a live microphone, so the under-two-seconds
+   timing is shown live in step 3 ("Checked in X seconds").
 3. **The purchase (25 s).** A judge shops by voice, hears the spoken
    confirmation, approves, the token is charged, the receipt appears.
 4. **The privacy proof (15 s).** Open devtools: the merchant received
    `{verified, transaction_id}` and nothing else.
-5. **The drift (15 s).** Adaptation chart across simulated months, with and
-   without adaptation.
+5. **The drift (15 s).** Adaptation chart across later TORGO recording
+   sessions (days apart, not months), with and without adaptation.
 
 Record a video of the full working flow in advance as insurance against wifi
 failure at the table.

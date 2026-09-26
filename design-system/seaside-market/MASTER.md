@@ -21,8 +21,12 @@ overrides were decided for Timbre on 2026-09-25 and are implemented in
 ratio of every color pair.
 
 1. **Page pattern.** Not "Feature-Rich Showcase". The storefront is a test
-   harness (CLAUDE.md §1.1): a catalog grid with four sections, no hero, no
-   marketing sections, no social proof.
+   harness (CLAUDE.md §1.1): a catalog grid with four sections, no marketing
+   sections, no social proof, no invented deals. Revised 2026-09-26: the one
+   hero is a teal "market band" whose content is the voice shopping panel, the
+   product's accessibility feature, plus two true facts (free delivery
+   threshold, bank approval). Researched in the storefront brief (Whole Foods,
+   Weee, Misfits Market, Baymard, NN/g).
 2. **Primary button.** `#047857` with white text (5.48:1), hover `#065F46`
    (7.68:1). The generated `#059669` fails with white text (3.77:1).
 3. **Control borders.** `#5F7A70` (4.66:1 on white). The generated border
@@ -34,8 +38,14 @@ ratio of every color pair.
    `@fontsource-variable/*`, not Google Fonts, so the demo works on venue
    wifi (docs/CONTEXT.md §12).
 6. **Base size 18px**, not 16px, for low-vision users.
-7. **Motion.** No scroll-reveal and no GSAP. Only 180ms color transitions,
-   all disabled under `prefers-reduced-motion`.
+7. **Motion.** Revised 2026-09-26: purposeful CSS motion of 100 to 400ms
+   (button press, Add to stepper swap, cart badge bump, drawer slide, image
+   fade-in, one-time grid entrance, recording pulse, receipt check draw).
+   Tokens `--dur-*` and `--ease-*` in styles.css. Under
+   `prefers-reduced-motion: reduce` nothing moves or scales; fades may stay
+   (WCAG 2.3.3 covers movement). Still no scroll-reveal, no parallax, no
+   carousels, no GSAP or framer-motion, no infinite loops except loading and
+   recording indicators.
 8. **The bank widget is a second visual identity**: navy `#0B2545`, gold
    `#F4C95D` actions, its own icons under `web/src/issuer/`. It must never
    borrow storefront styling, because it represents a different party

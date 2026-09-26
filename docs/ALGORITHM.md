@@ -231,6 +231,12 @@ Use it only where it is load-bearing for this specific user.
 3. **Spoken confirmation.** Compose item, total including shipping and tax, card
    nickname, last four, and merchant. Pass all numbers in as data and forbid
    arithmetic in the prompt so the model cannot produce a wrong total.
+   *As built (2026-09-26):* split along the privacy boundary and filled from a
+   fixed template, not the LLM. The store reads back the item and price after a
+   spoken request (`web/src/lib/speak.js`); the bank widget reads back amount,
+   merchant, card nickname, and last four on request (`web/src/issuer/speak.js`).
+   Neither side holds all five fields (the issuer never sees items, ADR 2), and
+   a template cannot misstate a number. Browser speech synthesis; no network.
 4. **Dispute drafting.** Covers the post-purchase stage of the brief and removes
    the phone-tree barrier the whole project is about.
 

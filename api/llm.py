@@ -2,12 +2,13 @@
 import json
 import logging
 import re
+import unicodedata
 
 import httpx
 from pydantic import BaseModel, ConfigDict, Field, ValidationError
 
-from api.config import (INTENT_CONFIDENCE_MIN, LLM_API_KEY, LLM_PROVIDER, LLM_MODELS,
-                        LLM_TIMEOUT_S, LLM_MAX_TOKENS)
+from api.config import (FILLER_WORDS, INTENT_CONFIDENCE_MIN, KEYWORD_MIN_QUERY_COVERAGE, LLM_API_KEY, LLM_PROVIDER,
+                        LLM_MODELS, LLM_TIMEOUT_S, LLM_MAX_TOKENS)
 
 log = logging.getLogger(__name__)
 
@@ -19,28 +20,41 @@ class Intent(BaseModel):
 
 
 def words(text):
-    return set(re.findall(r"[a-z0-9]+", text.lower()))
+    """Accent-folded lowercase words, with a plural "s" dropped ("Bananas" and "banana" match)."""
+    folded = unicodedata.normalize("NFKD", text).encode("ascii", "ignore").decode().lower()
+    return {w[:-1] if len(w) > 3 and w.endswith("s") and not w.endswith("ss") else w
+            for w in re.findall(r"[a-z0-9]+", folded)}
 
 
 def keyword_match(hypotheses, catalog):
-    """Only a unique full product-name match is high confidence.
+    """Suggest a product only if it explains most of what was said.
 
-    Ties and partial overlap need explicit yes/no repair; never guess a cart.
+    A product's words include its brand. The query's content words (fillers
+    such as "please" removed) must be more than KEYWORD_MIN_QUERY_COVERAGE
+    covered by the product, so one shared word ("whole" in "whole milk" and
+    "21 Whole Grains Bread") is not enough. Only a unique product that covers
+    every content word is high confidence; ties and partial matches get a
+    yes/no repair question. Never guess a cart.
     """
     if not catalog or not hypotheses:
         return Intent(product_id=None, confidence=0.0)
     matches = []
     for product in catalog:
-        product_words = words(product["name"])
-        best = max((len(product_words & words(text)) / len(product_words) if product_words else 0
-                    for text in hypotheses), default=0)
+        product_words = words(f"{product.get('brand', '')} {product['name']}")
+        best = (0.0, 0.0)
+        for text in hypotheses:
+            query = words(text) - FILLER_WORDS
+            if query and product_words:
+                overlap = len(product_words & query)
+                best = max(best, (overlap / len(query), overlap / len(product_words)))
         matches.append((best, product["id"]))
-    matches.sort(key=lambda row: (-row[0], row[1]))
-    score, pid = matches[0]
-    if score == 0:
+    matches.sort(key=lambda row: (-row[0][0], -row[0][1], row[1]))
+    (coverage, _), pid = matches[0]
+    if coverage <= KEYWORD_MIN_QUERY_COVERAGE:
         return Intent(product_id=None, confidence=0.0)
-    tied = len(matches) > 1 and matches[1][0] == score
-    return Intent(product_id=pid, confidence=.9 if score == 1 and not tied else .5)
+    # Ambiguous whenever another product explains the query as fully, however long its name.
+    tied = len(matches) > 1 and matches[1][0][0] == coverage
+    return Intent(product_id=pid, confidence=.9 if coverage == 1 and not tied else .5)
 
 
 def _request(hypotheses, catalog):

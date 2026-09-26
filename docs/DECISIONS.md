@@ -22,20 +22,23 @@ Style rule: do not use em dashes.
 
 ---
 
-## 1. Visa Intelligent Commerce mapping (write this during the event)
+## 1. Visa Intelligent Commerce mapping
 
-Required for the Devpost submission. For each step of our flow, name the VIC
-capability it corresponds to:
+- **Date:** 2026-09-26
+- **Status:** accepted (mapping only; we have no Intelligent Commerce access, §9.1)
+- **Context:** Visa Intelligent Commerce (VIC) is gated, so Timbre ships on Stripe test mode behind the `PaymentProvider` interface (§9.3). The Visa challenge scores platform fluency, so this records where Timbre would sit in VIC, using Visa's own capability names from its developer page (developer.visa.com/capabilities/visa-intelligent-commerce): **Tokenization**, **Authentication** ("step up verification of the cardholder and set up a Passkey that will be used to authenticate Payment Instructions"), **Payment Instructions**, and **Signals**.
+- **Decision:** Position Timbre as an issuer-side step-up verification method inside VIC's Authentication capability, one that works for cardholders whose speech other voice checks reject, with the passkey as the fallback VIC already defines.
 
-| Timbre step | VIC capability |
-|---|---|
-| Card enrollment in setup | payment token provisioning and lifecycle |
-| Acoustic verification at approval | precedes cardholder step-up verification |
-| Passkey fallback | passkey management |
-| instruction_id binding | user instruction controls |
-| Receipt and outcome reporting | commerce signals |
+| Timbre step (code) | VIC capability | How it maps | Honest gap |
+|---|---|---|---|
+| Card tokenized at seeding; the issuer holds only a token reference and last four (`PaymentProvider.create_token`, `payment_tokens` table) | Tokenization | The same "no card number leaves the issuer" rule as a network token | Ours is a Stripe PaymentMethod, not a VIC agent-specific token |
+| Voice approval: two of the person's own sounds, personal threshold, replay check (`issuer/approvals.py` `voice`) | Authentication: step-up verification of the cardholder | Timbre is a step-up method the issuer chooses, like a 3-D Secure challenge (ADR 2) | VIC does not publish a hook for issuer-defined step-up methods that we could find |
+| Passkey fallback and step-up at or above $50 (`issuer/webauthn_routes.py`) | Authentication: Passkey set-up and use | Real WebAuthn passkeys, registered at the bank and asserted at checkout | Ours are our own WebAuthn credentials, not Visa Payment Passkeys |
+| `instruction_id` created when the shopper confirms a cart, bound to the approval and sent with the authorization (`authorize(..., instruction_id)`, Stripe metadata) | Payment Instructions | One confirmed instruction per purchase; the authorization must carry it, so a verification cannot be reused for a different charge | No standing limits or categories; each instruction is a single cart |
+| Outcome reported after settlement (`PaymentProvider.report_outcome`); the merchant learns only `{verified, transaction_id}` | Signals | The instruction plus the outcome is the record VIC uses for disputes | On Stripe the signal is only logged |
 
-Status: not yet written. Owner: integration and pitch role.
+- **Alternatives rejected:** Claiming a VIC integration we do not have (§2.6). Building against guessed VIC endpoints (§13.3).
+- **Consequences:** A `VisaProvider` would implement the same interface: `create_token` over Tokenization, `authorize` carrying the Payment Instruction, `report_outcome` over Signals, with Timbre's voice check as the Authentication step. The pitch line: "Timbre is the step-up method VIC's Authentication capability needs for cardholders whose speech other checks reject, and it falls back to the passkey VIC already specifies." Owner for the Devpost wording: integration and pitch role.
 
 ---
 
@@ -150,3 +153,41 @@ Status: not yet written. Owner: integration and pitch role.
 - **Decision:** Reserve one third of each group (at least one identity) for development, with a deterministic seed. Evaluate the remaining identities using five enrollment recordings and up to 40 distinct probes each, preferring a different recording session. Use fixed existing thresholds without corpus tuning. Compare in-sample versus leave-one-out spread on identical trials. Group impostor rates by the claimed identity, using every other evaluation identity as an impostor. Report cohort sizes, exclusions, low cohesion, and session fallbacks. Keep low-cohesion templates in this diagnostic experiment, explicitly separate from the live passkey policy.
 - **Alternatives rejected:** Disjoint enrollment/test identities cannot provide genuine trials. A random clip-level development/test split leaks identities. Claiming the corpus experiment validates the personalized sound challenge overstates the evidence. Choosing examples by scores cherry-picks results.
 - **Consequences:** Preliminary text-independent speaker-verification evidence only. No live thresholds, replay behavior, or fallback policy changes. EER sweeps personal-threshold score margins; FAR/FRR use the unchanged operating point. ADR 3 remains provisional for live enrollment. ADR 5 is reserved for the unresolved high-value passkey-only fallback decision.
+
+---
+
+## 7. Cheap accuracy candidates: none adopted
+
+- **Date:** 2026-09-26
+- **Status:** accepted (no live change)
+- **Context:** The goal was higher accuracy and fewer false accepts without training (docs/RESEARCH.md). `make variants` scored 4 preprocessing variants (plain, silence trimming, multi-crop, both) times 7 scorers (centroid, top-2 per-sample, mean subtraction, AS-norm with k = 10, 30, 60, mean subtraction plus AS-norm) on the Phase 8 trials. Each configuration's margin was set on the 4 development speakers to match the live policy's development FRR (30.0%); the configuration with the lowest development EER was then checked once on the 11 evaluation speakers against plain plus centroid under the same calibration.
+- **Decision:** Keep the live pipeline (plain embedding, centroid, held-out spread, `THRESHOLD_MARGIN`, `GLOBAL_FLOOR`). The development pick, multi-crop plus mean subtraction, failed all three checks on evaluation speakers: control FAR 1.75% to 2.30%, dysarthric FAR 0.83% to 0.88%, dysarthric FRR 36.25% to 41.25% (budget 2 points).
+- **Evidence beyond the pick (shown for transparency, chooses nothing):** no configuration beat the reference's dysarthric EER of 8.75%. Configurations that lowered FAR in both groups (for example multi-crop plus AS-norm k = 10: 1.40% and 0.46%) raised dysarthric FRR by roughly 10 to 15 points. Silence trimming consistently hurt dysarthric speakers (for example FRR 36.25% to 49.17% with the centroid), plausibly because quiet dysarthric speech falls below a threshold set relative to the loudest frame.
+- **Known flaw, disclosed:** on development speakers the cohort (for AS-norm and mean subtraction) is drawn from the same speakers who serve as impostors, so cohort-based methods look better on development than they are; that is why development chose mean subtraction. With 4 development speakers there is no disjoint cohort to use instead. The evaluation table shows that no configuration passes all three checks, so a cleaner selection would not have produced an adoption.
+- **Alternatives rejected:** Picking the best-looking evaluation row (tuning on evaluation speakers, ADR 6). Loosening the FRR budget, which shifts the cost of fewer false accepts onto dysarthric users, the population the project exists for.
+- **Consequences:** No template recompute, no threshold change, no latency change. The harness (`ml/preprocess.py`, `ml/variants.py`, `scripts/run_variants.py`) stays for future candidates. The remaining lever from the survey is a stronger or second embedding model (plan Phase 4), which needs a new dependency and a download; a larger development cohort (another corpus) would also make selection trustworthy. Preliminary, small corpus, correlated trials.
+
+---
+
+## 8. Candidate encoders and ECAPA fusion: not adopted yet; fusion is a lead
+
+- **Date:** 2026-09-26
+- **Status:** accepted (no live change); adoption of a fusion is an open decision for the team
+- **Context:** Plan Phase 4 (docs/RESEARCH.md §3). `make models` compared four pretrained VoxCeleb encoders, WeSpeaker CAM++ (Apache-2.0), ResNet221-LM (Apache-2.0), ResNet34-LM (CC-BY-4.0) as ONNX, and SpeechBrain ResNet (Apache-2.0), alone and fused with ECAPA (equal-weight cosine averaging), each with the live centroid scorer and a floor-free variant. Same protocol as ADR 7: margins matched on 4 development speakers to the live development FRR (30.0%), the lowest development EER picked, checked once on 11 evaluation speakers. No new pip dependency: onnxruntime was already installed by faster-whisper, fbank comes from the pinned torchaudio.
+- **Decision:** Keep ECAPA alone live. The development pick, ResNet221 with the centroid, lowered FAR in both groups (control 1.75% to 0.80%, dysarthric 0.83% to 0.25%) but raised dysarthric FRR from 36.25% to 45.42%, beyond the 2-point budget.
+- **Lead (post hoc, chooses nothing):** fusing ECAPA with a second encoder helped fairly consistently. Three of the four fusions with the centroid lowered EER in both groups (control 6.60% to 4.90% to 5.15%; dysarthric 8.75% to 5.67% to 6.67%); the fourth, ECAPA + CAM++, lowered dysarthric EER but raised control EER to 7.00%. Several would have passed all three checks; for example ECAPA + ResNet34: control FAR 1.05%, dysarthric FAR 0.50%, dysarthric FRR 33.75%, with 57 ms extra per take. The development ranking did not predict evaluation (ResNet221 had the best development EER and among the worst dysarthric evaluation EER), which confirms that 4 development speakers cannot choose.
+- **Latency per take (CPU, this laptop):** CAM++ 53 ms, ResNet34 57 ms, ResNet221 276 ms, SpeechBrain ResNet about 2.7 s (disqualified by the 2 s target).
+- **Alternatives rejected:** Adopting ECAPA + ResNet34 now on evaluation numbers (tuning on evaluation speakers, ADR 6). Relaxing the FRR budget for ResNet221.
+- **Consequences:** Nothing changes live. To adopt a fusion honestly, confirm it on data it was not chosen on: a second dysarthric corpus (for example UA-Speech, which needs a license request) or real enrollments. If the team adopts ECAPA + ResNet34 anyway, record it as a post-hoc choice, credit the CC-BY-4.0 model, move the encoder into ml/encoder.py (§6), recompute templates from stored samples, and retune `GLOBAL_FLOOR` and `THRESHOLD_MARGIN` for the fused scale.
+
+---
+
+## 9. Fusion rejected on independent data; the live design holds on EasyCall
+
+- **Date:** 2026-09-26
+- **Status:** accepted
+- **Context:** ADR 8 left ECAPA + ResNet34 fusion as a lead chosen post hoc. It was tested once on EasyCall (Italian dysarthric command corpus, 30 evaluation speakers) under docs/PREREGISTRATION.md and Amendment 1, both committed before any EasyCall score existed.
+- **Decision:** Keep ECAPA alone. Fusion failed the pre-registered rule (worse control EER, higher FAR in both groups); see the Outcome section of docs/PREREGISTRATION.md.
+- **What the same run showed about the live configuration:** with the product's own protocol (five takes of one repeated command, the rest as probes from other sessions) and the live policy, ECAPA reached EER 0.29% (control) and 2.43% (dysarthric); at a margin of 0.119, FAR 0.02% and 0.23% with FRR 4.40% and 7.95%. Against the tougher same-word attacker (exploratory, not pre-registered): dysarthric EER 2.84%, FAR 0.63%, FRR 7.30% at the live margin. The text-independent check on the same speakers gave 8.75% dysarthric EER, the same as TORGO, which supports designing enrollment around a repeated personal sound.
+- **Alternatives rejected:** Adopting fusion on its single passing sub-check (dysarthric EER). Re-running with other encoders or margins on EasyCall (the pre-registration forbids it).
+- **Consequences:** No live change. The numbers that may be quoted, always with these caveats: one corpus, Italian, 8 kHz audio upsampled, corpus impostors rather than trained imitators or synthetic voices, correlated trials, not a population claim, and the same-word figures are exploratory. The fusion code stays for reproducibility. UA-Speech (with a UIUC license) or real enrollments remain the next independent checks.

@@ -24,6 +24,126 @@ alternatives considered and why they were rejected.
 
 ---
 
+### 2026-09-26 08:30 - Storefront redesign with purposeful motion
+
+- **Files:** web/src/pages/{Shop,Checkout,Receipt}.jsx, web/src/components/{SiteHeader,VoiceShopping,CartDrawer,Icons}.jsx, web/src/components/ProductCard.jsx (new), web/src/components/jump.js (new), web/src/styles.css, web/src/styles/checkout.css. Built by two helper agents in parallel with strict file ownership, then integrated and reviewed.
+- **What:** A teal "market band" hero whose content is the voice shopping panel; aisle chips that jump to and focus each section; a 2/3/4/5-column grid of bordered product cards with image fade-in, computed unit prices, an "In cart: N" badge, and an Add button that becomes a quantity stepper; a sticky 64px header with a scroll-linked shadow and a cart badge that bumps on adds; a slide-over cart drawer with a free-delivery meter (threshold from the quote), pill steppers, and a pinned footer; a checkout with a step list and a sticky order summary (summary first on phones, items in a details element); a centered receipt with a drawn check mark and the two-key approval response as a code card. Motion follows the brief's 17-item spec plus a one-time staggered grid entrance, image zoom inside its well on hover (cards never lift), and a pulsing ring on the microphone while recording.
+- **Why:** User asked to elevate the storefront with animations, grounded in how real grocery stores look (brief: Whole Foods, Weee, Misfits Market, Instacart tokens, Baymard, NN/g, WCAG 2.3.3).
+- **Verify:** `npm --prefix web run build`; `make test` (131 passed). Browser QA at 1440, 900, and 375px: no horizontal scroll, no console errors, header exactly 64px, Add focuses the stepper's plus, the badge bumps, the drawer meter reads "Add $26.42 more for free delivery" at an $8.58 subtotal, the empty drawer hands focus to "Speak an item", checkout and receipt render, Baseline and Dashboard unaffected. A stylesheet audit found no movement outside `prefers-reduced-motion: no-preference`.
+- **Risk/Notes:** Fixed during QA: the cart button made the header 72px (sticky chips would tuck under it); the drawer said "ships free" when the quote lacked a threshold (it now hides the meter instead); keyboard focus fell to the body after answering a voice suggestion (it now returns to "Speak an item"); the checkout step connector dangled when wrapping at phone width; dead drawer and checkout rules removed from styles.css. The "$35" in the hero fact pill is a second copy of `FREE_SHIPPING_MIN_CENTS` (the catalog response carries no threshold). An independent accessibility review is in progress.
+
+---
+
+### 2026-09-26 07:30 - Storefront redesign foundation (tokens, motion rules, research)
+
+- **Files:** web/src/styles.css (tokens, reduced-motion rule), web/src/styles/checkout.css (new, empty), web/src/main.jsx, web/src/components/Icons.jsx (Mic, Trash), api/checkout.py (`/cart/quote` returns `free_shipping_min_cents`), design-system/seaside-market/MASTER.md (overrides 1 and 7 revised).
+- **What:** Groundwork for the storefront redesign from a researched brief (Whole Foods, Weee, Misfits Market, Instacart design tokens, Baymard, NN/g, WCAG 2.3.3): warm sand background, kelp-teal hero band, tint, skeleton, three shadow levels, radius and motion tokens, all with computed contrast ratios. The reduced-motion rule now stops all movement but keeps fades, which WCAG 2.3.3 does not count as motion. The quote endpoint exposes the free-delivery threshold so the drawer meter has one source of truth.
+- **Why:** User asked to elevate the storefront UI with animations; the shared pieces are laid first so two builders can work in parallel without editing the same files.
+- **Verify:** `make test` (131 passed); `npm --prefix web run build`.
+- **Risk/Notes:** Design overrides 1 ("no hero") and 7 ("only 180ms color transitions") are revised on purpose. The bank widget's tokens are untouched.
+
+---
+
+### 2026-09-26 07:00 - Demo hardening: rehearsal, executable demo script, Devpost draft
+
+- **Files:** docs/DEVPOST.md (new, drafted by a helper agent and reviewed), docs/DEMO.md, docs/CONTEXT.md (§16 steps 2 and 5).
+- **What:** Rehearsed the backend end to end with real dysarthric corpus audio (EasyCall speaker m09 enrolled as the demo user through the bank API): `make reset` works on Windows; one sound was flagged for low cohesion and replaced, as designed; a voice approval verified (scores 0.771 and 0.823 against thresholds 0.709 and 0.615) in 559 ms of server verification, a real Stripe test PaymentIntent was captured, and the merchant received exactly `{verified, transaction_id}`; a same-word impostor attempt was rejected (0.337 and 0.457) and the merchant saw `verified: false`. In the browser, the widget asked Maya for her two enrolled sounds with no console errors. DEMO.md step 2 now uses the Baseline page (the widget cannot take a corpus clip), lists one-time prerequisites and live enrollment after every reset, and adds warm-up, sound-choice, and timing notes. CONTEXT §16 no longer says "simulated months". DEVPOST.md is a ready-to-paste draft with every number and caveat traceable to README, ADR 3, ADR 9, and the pre-registration.
+- **Why:** Phase 10 demo hardening.
+- **Verify:** Follow docs/DEMO.md; the rehearsal numbers above come from a scratch script run against `make issuer` and `make api`.
+- **Risk/Notes:** Still needs a human: a real microphone enrollment and approval, a Windows Hello passkey, and the backup video. One unexplained page reload on the first browser run after startup; not reproduced. The full voice response is about 2.6 s because it includes Stripe; "Checked in X seconds" shows the verification alone.
+
+---
+
+### 2026-09-26 06:20 - README reflects what is built and measured
+
+- **Files:** README.md.
+- **What:** Replaced the "in progress" status with the problem statement, what works, a table of measured claims each tied to its ADR and caveats, run instructions, and full credits (TORGO, EasyCall CC BY-NC 2.0, ECAPA, the candidate encoders not used live, Whisper for store-side shopping only).
+- **Why:** Phase 10; the README is what judges read first, and §2.6 requires every claim to be one we can back.
+- **Verify:** Each number in the table matches ADR 3, 9, the baseline and drift outputs; the novelty framing matches docs/CONTEXT.md §11.
+- **Risk/Notes:** Devpost text is still to be written from this.
+
+---
+
+### 2026-09-26 06:10 - EasyCall confirmation: fusion rejected, live design holds (ADR 9)
+
+- **Files:** docs/PREREGISTRATION.md (Outcome), docs/DECISIONS.md (ADR 9), docs/RESEARCH.md, AGENTS.md, scripts/run_same_word.py (new, exploratory), .gitignore.
+- **What:** Ran `make confirm` once as pre-registered. ECAPA + ResNet34 failed 3 of 5 checks, so ECAPA stays alone and the fusion lead is closed. The live configuration measured, on 30 independent evaluation speakers with the product's repeated-sound protocol: EER 0.29% control and 2.43% dysarthric (FAR 0.02% and 0.23%, FRR 4.40% and 7.95%). An exploratory same-word attacker rescoring gave dysarthric EER 2.84%, FAR 0.63%, FRR 7.30% at the live margin.
+- **Why:** The recommended path from ADR 8: confirm on data the configuration was not chosen on.
+- **Verify:** `make confirm` (about 40 minutes the first time; cached after), then `python -m scripts.run_same_word`; compare with the Outcome table in docs/PREREGISTRATION.md.
+- **Risk/Notes:** Caveats in ADR 9 travel with every number: one Italian corpus, 8 kHz upsampled, corpus impostors only, correlated trials. The same-word figures are exploratory. EasyCall is CC BY-NC 2.0 and stays under gitignored data/.
+
+---
+
+### 2026-09-26 05:45 - ADR 1: Visa Intelligent Commerce mapping
+
+- **Files:** docs/DECISIONS.md (ADR 1).
+- **What:** Replaced the stub with a mapping from each Timbre step, with its code location, to VIC's published capabilities (Tokenization, Authentication with step-up verification and passkeys, Payment Instructions, Signals), with an honest gap column for each row.
+- **Why:** Phase 10 and §9.2: platform fluency is scored, and the Devpost needs this without claiming an integration we do not have.
+- **Verify:** Read ADR 1; capability names and quotes match developer.visa.com/capabilities/visa-intelligent-commerce (checked 2026-09-26).
+- **Risk/Notes:** No VIC access; every row states its gap. Devpost wording still to be written by the pitch owner.
+
+---
+
+### 2026-09-26 05:30 - Keyword fallback no longer suggests from one shared word
+
+- **Files:** api/llm.py (`words`, `keyword_match`), api/config.py (`KEYWORD_MIN_QUERY_COVERAGE`, `FILLER_WORDS`), tests/test_shopping.py.
+- **What:** Found in a live check: typing "whole milk" (not in the catalog) suggested "21 Whole Grains and Seeds Bread", and "cheddar" was matched confidently to one of three cheddar products. Now a product must explain more than half of the query's content words (brand words count, fillers such as "please" do not, plurals and accents are folded), and any other product covering the query as fully makes the answer a yes/no repair rather than a confident pick.
+- **Why:** The fallback runs whenever no LLM key is set, which is the current state; a wrong confident suggestion is the failure this user already lives with.
+- **Verify:** `make test` (shopping tests cover "whole milk", brand, plural, accent, and the cheddar tie); live: `curl -X POST localhost:8000/shopping/text -d '{"text":"whole milk"}'` returns no product. Browser: typing "cheddar" asks "Did you mean ...?"; the bank widget's readback said "Pay $10.45 to seaside market with your Travel Mastercard ending 4 4 4 4." (headless Chromium, no console errors).
+- **Risk/Notes:** Stricter matching means a few more "I could not find one item" answers; the product buttons and typing remain.
+
+---
+
+### 2026-09-26 05:00 - Spoken confirmation, split along the privacy boundary (§10.3)
+
+- **Files:** web/src/lib/speak.js (new), web/src/issuer/speak.js (new), web/src/components/VoiceShopping.jsx, web/src/issuer/ApprovalWidget.jsx, docs/ALGORITHM.md (§10.3 as built), docs/DEMO.md.
+- **What:** After a spoken shopping request, the store reads its suggestion aloud ("Add ... for $4.99?") and offers "Say it again"; typed requests stay silent. The bank widget offers "Read this payment aloud": amount, store, and, once a card is chosen, its nickname and last four read digit by digit. Speech stops before either microphone opens and on close, so a readback is never recorded.
+- **Why:** Demo step 3 and §10.3. The issuer never sees items and the store never sees the card (ADR 2, §2.5), so each side reads what it already shows; a fixed template cannot misstate a number, which is what §10.3's no-arithmetic rule was protecting.
+- **Verify:** `npm --prefix web run build`; `make test` (guard tests keep each side's helper in its own folder). In a browser: speak an item on the Shop page and hear the suggestion; at checkout press "Read this payment aloud".
+- **Risk/Notes:** Uses the browser's speech synthesis (no network, no LLM); the button is hidden where it is unavailable. Deviation from §10.3's LLM-composed wording, recorded in ALGORITHM.md.
+
+---
+
+### 2026-09-26 04:30 - Pre-registration amendment 1 (before scoring)
+
+- **Files:** docs/PREREGISTRATION.md.
+- **What:** Declared, before any embedding or score existed: upsampling of EasyCall's 8 kHz audio to 16 kHz for both configurations, exclusion of the one speaker without a severity label, and using every eligible command as its own template so P1 has about 1,390 genuine trials instead of about 44.
+- **Why:** The metadata showed one take per command per session, which would leave the pre-registered test with almost no statistical power.
+- **Verify:** `git log -- docs/PREREGISTRATION.md` shows this amendment precedes the confirmation run.
+- **Risk/Notes:** Configurations, split, calibration, and the adoption rule are unchanged.
+
+---
+
+### 2026-09-26 04:10 - Pre-register the fusion confirmation on EasyCall
+
+- **Files:** docs/PREREGISTRATION.md (new).
+- **What:** Froze the hypothesis, configurations (ECAPA versus ECAPA + ResNet34), corpus (EasyCall, CC BY-NC 2.0), speaker split, text-dependent protocol, calibration, and a three-part adoption rule, before downloading or scoring any EasyCall audio.
+- **Why:** ADR 8's fusion lead came from post-hoc evaluation numbers; the recommended path is to confirm it on data it was not chosen on, and committing the rule first makes the test honest.
+- **Verify:** `git log -- docs/PREREGISTRATION.md` shows this commit precedes any EasyCall result.
+- **Risk/Notes:** UA-Speech mirrors on the Hub carry no license and the official corpus needs a UIUC agreement, so UA-Speech is not used.
+
+---
+
+### 2026-09-26 03:40 - Candidate encoders and ECAPA fusion (ADR 8: not adopted; fusion is a lead)
+
+- **Files:** ml/candidate_encoders.py (new), scripts/warm_candidates.py (new), scripts/run_variants.py (`--suite models`, fusion, per-model timing), ml/variants.py (`FreeCentroid`), tests/test_variants.py (fbank front end), tests/test_guards.py (issuer never loads candidates), Makefile (`models`), .gitignore, docs/DECISIONS.md (ADR 8), docs/RESEARCH.md, AGENTS.md.
+- **What:** Compared WeSpeaker CAM++, ResNet221-LM, ResNet34-LM (ONNX) and SpeechBrain ResNet, alone and fused with ECAPA, under the ADR 7 protocol. The development pick (ResNet221) halved FAR but raised dysarthric FRR from 36.25% to 45.42%, so ECAPA stays alone live. Post hoc, 3 of 4 ECAPA fusions lowered EER for both groups; ECAPA + ResNet34 would have passed every check at 57 ms extra per take. Recorded as a lead needing independent data.
+- **Why:** Plan Phase 4, requested by the user.
+- **Verify:** `python -m scripts.warm_candidates` (about 220 MB into models/candidates/); `make models`; read `docs/models_results.md`. `make test` passes.
+- **Risk/Notes:** No new pip dependency: onnxruntime (already installed by faster-whisper) is used directly, so pin it in requirements.txt if a candidate is ever adopted. Candidates are evaluation-only and a guard test keeps them out of the issuer. SpeechBrain ResNet takes about 2.7 s per take and is disqualified for live use. ResNet34 is CC-BY-4.0 (attribution needed if adopted).
+
+---
+
+### 2026-09-26 02:30 - Accuracy research and candidate comparison (ADR 7: none adopted)
+
+- **Files:** docs/RESEARCH.md (new), docs/DECISIONS.md (ADR 7), docs/CONTEXT.md (§11), ml/preprocess.py (new), ml/variants.py (new), scripts/run_variants.py (new), tests/test_variants.py (new), issuer/config.py (candidate constants), Makefile (`variants`), .gitignore, AGENTS.md.
+- **What:** Surveyed published work on improving speaker verification and lowering false accepts (docs/RESEARCH.md, with sources). Built `make variants`: 4 preprocessing variants (plain, energy-based silence trimming, multi-crop, both) times 7 scorers (centroid, top-2 per-sample, mean subtraction, AS-norm k = 10/30/60, mean subtraction plus AS-norm) on the Phase 8 trials, margins calibrated on development speakers to the live policy's development FRR, one development-chosen configuration checked on evaluation speakers. Result: the pick (multi-crop plus mean subtraction) raised FAR in both groups and dysarthric FRR by 5 points, so nothing is adopted; no configuration beat the live dysarthric EER of 8.75%, and trimming hurt dysarthric speakers.
+- **Why:** User asked for research into higher accuracy and fewer false positives; the plan required measuring before changing the live path.
+- **Verify:** `make test` (123 passed); `make eval && make variants`, then read `docs/variants_results.md` (embeddings cached under `data/variant_cache/`; first run about 30 minutes, reruns about 2).
+- **Risk/Notes:** No live behavior changed; the new constants are marked evaluation-only. Disclosed flaw: with 4 development speakers, cohort-based scorers' cohorts overlap development impostors, which flatters them on development (ADR 7). Next levers: a larger development cohort from another corpus, then a stronger or second embedding model (plan Phase 4, new dependency).
+
+---
+
 ### 2026-09-26 00:40 - Baseline page, Phase 9 adaptation, Dashboard drift chart
 
 - **Files:** issuer/verification.py (`adapt`), issuer/approvals.py, issuer/config.py (`BASELINE_MAX_WER`), ml/baseline_asr.py (new), ml/constants.py (`WHISPER_DIR`), api/config.py, api/asr.py, scripts/run_baseline.py (new), scripts/run_drift.py (new), web/src/pages/{Baseline,Dashboard}.jsx (new), web/src/{App.jsx,lib/router.js,styles.css}, Makefile (`baseline`, `drift`), .gitignore, docs/DEMO.md, AGENTS.md, tests/test_{baseline,verification,challenge,shopping}.py.

@@ -19,7 +19,7 @@ from pydantic import BaseModel, ConfigDict, Field
 
 from api import issuer_client
 from api.cart import CartError, price_cart
-from api.config import MAX_CART_LINES, MAX_QUANTITY, MERCHANT_ID
+from api.config import FREE_SHIPPING_MIN_CENTS, MAX_CART_LINES, MAX_QUANTITY, MERCHANT_ID
 from api.db import fetch_one, transaction
 
 log = logging.getLogger(__name__)
@@ -57,7 +57,9 @@ def _price(body: CartRequest) -> dict:
 
 @router.post("/cart/quote")
 def quote(body: CartRequest) -> dict:
-    return _price(body)
+    # The drawer's free-delivery meter reads the threshold from here, so the
+    # web app never keeps a second copy of FREE_SHIPPING_MIN_CENTS.
+    return {**_price(body), "free_shipping_min_cents": FREE_SHIPPING_MIN_CENTS}
 
 
 @router.post("/checkout/confirm")

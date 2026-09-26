@@ -2,7 +2,7 @@
 
 ## Handoff (read first; updated 2026-09-25, moved from Claude Code to Codex)
 
-**First action:** read this file, then `docs/CHANGELOG.md` (newest first), `docs/DECISIONS.md` (ADR 1-4), and `docs/CONTEXT.md` §12. Read `docs/ALGORITHM.md` before touching `issuer/`, `ml/`, or payments. Then give the person running Codex a short summary: what is done, what is next, open decisions.
+**First action:** read this file, then `docs/CHANGELOG.md` (newest first), `docs/DECISIONS.md` (ADR 2-4), and `docs/CONTEXT.md` §12. Read `docs/ALGORITHM.md` before touching `issuer/`, `ml/`, or payments. Then give the person running Codex a short summary: what is done, what is next, open decisions.
 
 **Done (Phases 0-6, 96 tests pass via `make test` as of Phase 8):** three services (merchant :8000, issuer :8100, Vite web :5173); privacy boundary (merchant learns only `{verified, transaction_id}`, enforced by tests); accessible storefront + bank widget; ECAPA enrollment, interleaved (ADR 4), held-out spread thresholds (ADR 3); voice challenge 2-of-3 with replay check and 2-attempt fallback; real WebAuthn passkeys; Stripe test-mode payments. Stubs remaining: enrollment/passkey registration have no auth (demo sign-in); `visa_provider` not built.
 
@@ -12,6 +12,7 @@
 1. Phase 7 live: set `LLM_API_KEY` and try a spoken item end to end. The rerank on-vs-off intent-accuracy delta (§3.2) needs real recordings of people naming catalog items; TORGO has none and §2.3 forbids imitating them.
 2. Decide whether adaptation needs a cumulative drift cap: per-update `MAX_DRIFT` holds, but templates drifted 0.18 to 0.32 over many updates in `make drift` (impostor accept 1.46% -> 1.96%).
 3. Spoken confirmation (§10.3) and dispute drafting (§10.4) are not built.
+3a. Accuracy: cheap candidates rejected (ADR 7); encoders not adopted (ADR 8); fusion failed a pre-registered test on EasyCall (ADR 9), while the live design held (dysarthric EER 2.43%, 2.84% vs same-word attackers). Quote only with ADR 9's caveats.
 4. Phase 10: demo hardening, `docs/DEMO.md`, VIC mapping in ADR 1, README/Devpost (check `docs/CONTEXT.md` §11 before claiming anything).
 
 **Open decisions for the person:** (a) purchases >= $50 fall back to passkey-only after 2 failed voice attempts (recommended keep, record as ADR 5); (b) roll the Stripe test key after the event (it was shared in chat).

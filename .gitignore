@@ -23,3 +23,10 @@ web/public/baseline/
 web/public/baseline.tmp/
 web/public/drift/
 web/public/drift.tmp/
+docs/variants_results.md
+docs/variants_results.json
+docs/models_results.md
+docs/models_results.json
+docs/confirm_results.md
+docs/confirm_results.json
+docs/same_word_results.md

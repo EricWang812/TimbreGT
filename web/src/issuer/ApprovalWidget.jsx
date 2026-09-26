@@ -18,6 +18,7 @@ import {
 } from "./issuerApi.js";
 import { BankIcon, CheckIcon, ShieldIcon } from "./icons.jsx";
 import { MAX_SECONDS, MicrophoneError, TooShortError, startRecording } from "./recorder.js";
+import { canSpeak, paymentSentence, speak, stopSpeaking } from "./speak.js";
 
 const USD = new Intl.NumberFormat("en-US", { style: "currency", currency: "USD" });
 const WARN_AT_SECONDS = 60;   // WCAG 2.2.1: warn before the time limit and offer more time
@@ -126,6 +127,7 @@ export default function ApprovalWidget({ sessionId, onClose }) {
       clearTimeout(timers.current.limit);
       clearTimeout(timers.current.warn);
       recorder.current?.stop().catch((err) => console.info("recording discarded on close", err));
+      stopSpeaking();
     };
   }, []);
 
@@ -231,6 +233,7 @@ export default function ApprovalWidget({ sessionId, onClose }) {
     if (starting.current) return;
     if (recorder.current) return finishTake();
     setMessage("");
+    stopSpeaking();   // a readback must never end up in the take
     starting.current = true;
     try {
       recorder.current = await startRecording();
@@ -371,6 +374,16 @@ export default function ApprovalWidget({ sessionId, onClose }) {
           <div>
             <p className="bank-muted">Payment to {session.merchant_id}</p>
             <p className="bank-amount">{USD.format(session.amount_cents / 100)}</p>
+            {canSpeak() && !recording && (
+              <button type="button" className="btn btn-bank-quiet"
+                onClick={() => speak(paymentSentence({
+                  amountText: USD.format(session.amount_cents / 100),
+                  merchant: session.merchant_id,
+                  card: phase === "choose" ? null : cardholders.find((c) => c.id === selected),
+                }))}>
+                Read this payment aloud
+              </button>
+            )}
           </div>
         )}
 
