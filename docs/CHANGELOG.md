@@ -24,6 +24,38 @@ alternatives considered and why they were rejected.
 
 ---
 
+### 2026-09-26 14:15 - Agentic shopping understands budgets, per-item limits, and "cheapest"
+
+- **Files:** api/openai_intent.py, api/ambiguity_resolution.py, api/final_intent.py, api/commerce_agent.py, web/src/components/AgenticVoiceShopping.jsx, tests/test_agentic_intent.py, tests/test_final_intent.py, tests/test_commerce_agent.py, AGENTS.md.
+- **What:** Added `quantity.mode` (`exact` or `fill_budget`), `maxPrice.per` (`total` or `each`), and `preferCheapest` to the intent schema; a `strict_schema` helper makes every property required and strips defaults for Structured Outputs, while model defaults keep older client-carried state valid. "As much X as I can under $10" becomes fill_budget: the commerce agent computes floor(limit / unit price) per candidate, capped by MAX_QUANTITY minus what the cart already holds, and says "as many as fit in $10.00, before tax and delivery". A fill-budget request with no budget asks one question, "How much do you want to spend in total?". Per-item limits check one unit. "Cheapest" sorts by price only within the most relevant tier, so it never swaps a jar of peanut butter for an energy bar. The prompt counts packages as sold ("a dozen eggs" is 1 carton) and writes products in catalog words ("coke" as Coca-Cola). Size also matches pack sizes in the product name ("6 Pack"). Labels no longer repeat a brand the name already contains. The UI shows "As many as fit your limit", "$2 each", and "Cheapest match", and the ready card shows the agent's message plus the cart total.
+- **Why:** The person asked for quantity to be inferred from phrases like "buy as much of X as you can but keep it under 10 bucks".
+- **Verify:** `.venv/Scripts/python.exe -m pytest -q` (all pass); `npm --prefix web run build`; live OpenAI text runs: "buy as much greek yogurt as you can but keep it under 10 bucks" adds 6 Chobani Vanilla Greek Yogurt ($8.94); "as many cans of chicken soup as twenty dollars will buy" adds 13 ($19.37); "fill up fifteen dollars of pasta" adds 7 ($13.93); "yogurt, but no more than two dollars each" and "a dozen eggs" and "a six pack of coke" add 1; "as much ice cream as I can get" asks only for the budget. All with 0 questions otherwise.
+- **Risk/Notes:** The budget covers item prices; tax and delivery are added at checkout, and the message says so. Not yet spoken through the browser.
+
+### 2026-09-26 13:30 - Agentic shopping asks only when unsure
+
+- **Files:** api/ambiguity_resolution.py, api/final_intent.py, api/commerce_agent.py, api/openai_intent.py, api/config.py, web/src/components/AgenticVoiceShopping.jsx, tests/test_agentic_intent.py, tests/test_ambiguity_resolution.py, tests/test_final_intent.py, tests/test_commerce_agent.py, docs/DECISIONS.md, AGENTS.md.
+- **What:** Replaced the confirm-every-field policy (a live request took 5 confirmations) with ADR 10. High-confidence values are accepted without questions; only the product is required; an unstated quantity defaults to 1 and an unstated budget means no limit, both disclosed on screen. Medium or low values and model-flagged material ambiguities get one Yes/No each, with uniform wording, one question per field and per span of words. Added a deterministic catalog-aware brand repair (the planned boys/Bose fix): a heard word that sounds like or is spelled like a store brand is proposed once, never accepted without a Yes, and the same words are set aside from use case and preferences; declining gives them back. A store brand the speaker never said (inferred from the product, as "OJ" to Simply Orange) is neither asked nor used. The intent prompt now receives the store catalog as reference data, keeps the product as the spoken generic phrase, and treats price and quantity as optional. Finalization normalizes spoken currency ("dollars" was being rejected as a foreign currency). Commerce treats color as a disclosed soft preference, accepts no price limit, prefers names that are mostly the request (peanut butter picks the jar, not the energy bar), matches split compounds (gold fish to Goldfish), and explains which constraint ruled everything out. The UI shows only what was said plus assumptions, applies a clear request straight to the cart, and adds Undo.
+- **Why:** The shopper had to confirm every field, including ones heard clearly, which is the opposite of what a person with a speech disability needs.
+- **Verify:** `.venv/Scripts/python.exe -m pytest -q` (174 passed); `npm --prefix web run build`; live OpenAI text runs through `/agentic-shopping/intent`, `/clarifications`, `/finalize`, `/commerce/prepare-cart`: "two OJs", "I need some red apples", "a couple of greek yogurts under five bucks", "three cans of chicken noodle soup", "some ben and jerrys ice cream", "I want some Gold fish crackers" reach cart_ready with 0 questions; "get me some jiffy peanut butter" asks only `I heard "jiffy". Did you mean Jif?`; "coffee under three dollars" explains Folgers costs $5.99, over the $3.00 limit.
+- **Risk/Notes:** Nothing is bought without the existing checkout, issuer challenge, and payment; the merchant boundary is unchanged. Auto-applying to the cart relies on Undo and cart review as the confirmation. The seeded catalog sells no bananas, so the banana example now reports that honestly. Not yet spoken end to end through the browser after this change.
+
+### 2026-09-26 12:30 - Record the first human passkey and Stripe purchase
+
+- **Files:** AGENTS.md, docs/CHANGELOG.md.
+- **What:** Recorded that a person completed a fingerprint passkey registration and a passkey-only UI purchase through Stripe test mode; the merchant response was exactly `{verified, transaction_id}`. Recorded the first failure and its cause: the Windows WebAuthN operational log showed the passkey was held by Edge's Microsoft Password Manager and Windows routed the assertion to it as a plugin provider (`PluginGetAssertionRequest`); user verification passed but no assertion returned, so the issuer never received a response. The stale credential row was removed from the local `issuer.db` (demo data only) and the person re-registered.
+- **Why:** These were the two items listed as unverified by a human, and the failure mode can recur on a demo machine.
+- **Verify:** Enroll a passkey for a demo cardholder, check out, choose Use my passkey, and confirm the merchant response in devtools has exactly two keys.
+- **Risk/Notes:** No application code changed. The web page cannot force Windows Hello over a browser passkey provider, so the demo machine needs one rehearsal.
+
+### 2026-09-26 12:00 - Record ADR 5: high-value purchases fall back to the passkey alone
+
+- **Files:** docs/DECISIONS.md, tests/test_challenge.py, AGENTS.md, docs/CHANGELOG.md.
+- **What:** The person confirmed that purchases at or above `STEP_UP_AMOUNT` ($50) fall back to the passkey alone after 2 failed voice attempts. Recorded as ADR 5 (accepted), updated ADR 6's forward reference, marked the decision closed in the AGENTS.md handoff, and added a regression test for the previously untested step-up plus two-failures path.
+- **Why:** The behavior already existed in `issuer/approvals.py` but was an open decision with no test; it is now a recorded decision enforced by the suite.
+- **Verify:** `.venv/Scripts/python.exe -m pytest -q tests/test_challenge.py` (15 passed).
+- **Risk/Notes:** No application code or §7 parameter changed.
+
 ### 2026-09-26 11:45 - Record live agentic text-stage simulations
 
 - **Files:** AGENTS.md, docs/CHANGELOG.md.

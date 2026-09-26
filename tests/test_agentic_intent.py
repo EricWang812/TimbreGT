@@ -5,8 +5,31 @@ import httpx
 import pytest
 from fastapi.testclient import TestClient
 
-from api import agentic_shopping, openai_intent
+from api import agentic_shopping, ambiguity_resolution, openai_intent
 from api.main import app
+
+# A small stand-in store. Brands matter to the clarification policy: a heard
+# word is only ever proposed as a brand this store carries.
+STORE = [
+    {"id": "sony-wh", "name": "Wireless Noise Canceling Headphones", "brand": "Sony", "size": "one size",
+     "category": "electronics", "price_cents": 14900, "image_url": "/sony.jpg", "image_credit": "test"},
+    {"id": "bose-qc", "name": "QuietComfort Headphones", "brand": "Bose", "size": "one size",
+     "category": "electronics", "price_cents": 34900, "image_url": "/bose.jpg", "image_credit": "test"},
+    {"id": "chobani", "name": "Greek Yogurt, Nonfat Plain", "brand": "Chobani", "size": "32 oz",
+     "category": "dairy", "price_cents": 649, "image_url": "/chobani.jpg", "image_credit": "test"},
+    {"id": "bananas", "name": "Organic Bananas", "brand": "Dole", "size": "3 lb",
+     "category": "produce", "price_cents": 299, "image_url": "/bananas.jpg", "image_credit": "test"},
+]
+
+
+@pytest.fixture
+def store(monkeypatch):
+    monkeypatch.setattr(ambiguity_resolution, "list_catalog", lambda: STORE)
+    monkeypatch.setattr(openai_intent, "list_catalog", lambda: STORE)
+    return STORE
+
+
+pytestmark = pytest.mark.usefixtures("store")
 
 
 def intent_payload():
@@ -69,6 +92,14 @@ def test_intent_uses_structured_output_and_preserves_uncertainty(monkeypatch):
     assert seen["json"]["store"] is False
     assert seen["json"]["text"]["format"]["type"] == "json_schema"
     assert seen["json"]["text"]["format"]["strict"] is True
+    # Strict mode: every property is required, including ones with model defaults.
+    schema = seen["json"]["text"]["format"]["schema"]
+    assert "mode" in schema["$defs"]["QuantityField"]["required"]
+    assert "preferCheapest" in schema["required"]
+    assert '"default"' not in json.dumps(schema)
+    # The model sees the store's catalog, so it can write "Bose" for "boys".
+    assert "Bose | QuietComfort Headphones" in seen["json"]["instructions"]
+    assert seen["json"]["input"] == "I need black sunny headphones under one fifty for the gym"
 
 
 def test_intent_rejects_malformed_or_provider_responses(monkeypatch):
