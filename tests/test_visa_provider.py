@@ -67,7 +67,24 @@ def test_tokenizes_from_a_customer_token_and_reads_only_the_last_four():
             "_embedded": {"instrumentIdentifier": {"card": {"number": "411111XXXXXX1111"}}},
         }]}})}, calls)
     token = provider.create_token("maya", CUSTOMER)
-    assert token == TokenRef(value=f"cybs:{CUSTOMER}", last_four="1111", nickname="Visa")
+    assert token == TokenRef(value=f"cybs:customer:{CUSTOMER}", last_four="1111", nickname="Visa")
+
+
+def test_a_payment_instrument_token_works_too():
+    # Live sandbox: the Business Center handed out payment instrument tokens,
+    # and the gateway reports the card type by name ("mastercard").
+    calls = []
+    provider = _provider({
+        ("GET", f"/tms/v2/customers/{CUSTOMER}/payment-instruments"): (404, {"errors": [{"type": "notFound"}]}),
+        ("GET", f"/tms/v1/paymentinstruments/{CUSTOMER}"): (200, {
+            "card": {"type": "mastercard"},
+            "_embedded": {"instrumentIdentifier": {"card": {"number": "555555XXXXXX4444"}}}}),
+        ("POST", "/pts/v2/payments"): (201, {"id": "pay_9", "status": "AUTHORIZED"}),
+    }, calls)
+    token = provider.create_token("jordan", CUSTOMER)
+    assert token == TokenRef(value=f"cybs:instrument:{CUSTOMER}", last_four="4444", nickname="Mastercard")
+    assert provider.authorize(token, 100, "seaside-market", "instr-9").ok
+    assert calls[-1][2]["paymentInformation"] == {"paymentInstrument": {"id": CUSTOMER}}
 
 
 def test_authorizes_then_captures_with_the_instruction_bound():
@@ -76,7 +93,7 @@ def test_authorizes_then_captures_with_the_instruction_bound():
         ("POST", "/pts/v2/payments"): (201, {"id": "pay_1", "status": "AUTHORIZED"}),
         ("POST", "/pts/v2/payments/pay_1/captures"): (201, {"id": "cap_1", "status": "PENDING"}),
     }, calls)
-    token = TokenRef(value=f"cybs:{CUSTOMER}", last_four="1111", nickname="Visa")
+    token = TokenRef(value=f"cybs:customer:{CUSTOMER}", last_four="1111", nickname="Visa")
 
     auth = provider.authorize(token, 5234, "seaside-market", "instr-42")
     assert auth.ok and auth.auth_id == "pay_1:5234"
@@ -91,7 +108,7 @@ def test_authorizes_then_captures_with_the_instruction_bound():
 
 
 def test_a_decline_is_a_result_and_bad_credentials_are_an_error():
-    token = TokenRef(value=f"cybs:{CUSTOMER}", last_four="1111", nickname="Visa")
+    token = TokenRef(value=f"cybs:customer:{CUSTOMER}", last_four="1111", nickname="Visa")
     declined = _provider({("POST", "/pts/v2/payments"): (201, {
         "id": "pay_2", "status": "DECLINED", "errorInformation": {"reason": "INSUFFICIENT_FUND"}})}, [])
     result = declined.authorize(token, 100, "seaside-market", "instr-1")

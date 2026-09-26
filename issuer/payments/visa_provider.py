@@ -7,10 +7,11 @@ authenticated with HTTP Signature (HMAC-SHA256 over host, date,
 request-target, digest, and v-c-merchant-id, keyed by the base64-decoded
 shared secret).
 
-Cards are CyberSource customer tokens created in the Business Center from a
-Visa test card. create_token() takes that customer token ID, never a card
-number, and reads the last four digits back from Token Management; the
-stored reference is "cybs:<customer id>" (non-negotiable §2.2).
+Cards are CyberSource tokens created in the Business Center from a Visa test
+card: a customer token or a payment instrument token. create_token() takes
+that token ID, never a card number, and reads the last four digits back from
+Token Management; the stored reference is "cybs:customer:<id>" or
+"cybs:instrument:<id>" (non-negotiable §2.2).
 
 authorize() places an authorization; the handle it returns is
 "<payment id>:<amount cents>", because a CyberSource capture or reversal
@@ -38,11 +39,18 @@ SANDBOX_HOST = "apitest.cybersource.com"
 TOKEN_PREFIX = "cybs:"
 CURRENCY = "USD"
 CAPTURED = {"PENDING", "TRANSMITTED"}   # a capture accepted for settlement
-CARD_TYPES = {"001": "Visa", "002": "Mastercard", "003": "American Express", "004": "Discover"}
+# Card type as the gateway reports it: a code ("001") or a name ("visa").
+CARD_TYPES = {"001": "Visa", "002": "Mastercard", "003": "American Express", "004": "Discover",
+              "visa": "Visa", "mastercard": "Mastercard", "american express": "American Express",
+              "amex": "American Express", "discover": "Discover"}
 
 
 class CyberSourceError(RuntimeError):
     """The gateway could not be reached, or refused our credentials."""
+
+
+def _brand(card_type) -> str:
+    return CARD_TYPES.get(str(card_type or "").lower(), "Card")
 
 
 def _amount(cents: int) -> str:
@@ -66,32 +74,39 @@ class VisaProvider(PaymentProvider):
     # --- PaymentProvider -----------------------------------------------------
 
     def create_token(self, user_id: str, test_card: str) -> TokenRef:
-        """`test_card` is a CyberSource customer token ID, not a card number."""
-        customer_id = test_card.removeprefix(TOKEN_PREFIX)
-        status, body = self._request("GET", f"/tms/v2/customers/{customer_id}/payment-instruments")
-        if status != 200:
-            raise CyberSourceError(f"customer token for {user_id} not found ({status})")
-        instruments = body.get("_embedded", {}).get("paymentInstruments", [])
-        if not instruments:
-            raise CyberSourceError(f"customer token for {user_id} has no card on it")
-        chosen = next((i for i in instruments if i.get("default")), instruments[0])
+        """`test_card` is a CyberSource customer token ID or payment instrument
+        token ID from the Business Center, never a card number."""
+        token_id = test_card.removeprefix(TOKEN_PREFIX)
+        status, body = self._request("GET", f"/tms/v2/customers/{token_id}/payment-instruments")
+        if status == 200:
+            kind = "customer"
+            instruments = body.get("_embedded", {}).get("paymentInstruments", [])
+            if not instruments:
+                raise CyberSourceError(f"customer token for {user_id} has no card on it")
+            chosen = next((i for i in instruments if i.get("default")), instruments[0])
+        else:
+            kind = "instrument"
+            status, chosen = self._request("GET", f"/tms/v1/paymentinstruments/{token_id}")
+            if status != 200:
+                raise CyberSourceError(f"no customer or payment instrument token for {user_id} ({status})")
         identifier = chosen.get("_embedded", {}).get("instrumentIdentifier", {}).get("card", {})
         masked = identifier.get("number", "")
         if len(masked) < 4 or not masked[-4:].isdigit():
-            raise CyberSourceError(f"customer token for {user_id} did not return a masked card number")
-        card_type = chosen.get("card", {}).get("type") or identifier.get("type")
-        return TokenRef(value=f"{TOKEN_PREFIX}{customer_id}", last_four=masked[-4:],
-                        nickname=CARD_TYPES.get(card_type, "Card"))
+            raise CyberSourceError(f"the token for {user_id} did not return a masked card number")
+        return TokenRef(value=f"{TOKEN_PREFIX}{kind}:{token_id}", last_four=masked[-4:],
+                        nickname=_brand(chosen.get("card", {}).get("type")))
 
     def authorize(self, token: TokenRef, amount_cents: int,
                   merchant_id: str, instruction_id: str) -> AuthResult:
         if not token.value.startswith(TOKEN_PREFIX):
             raise CyberSourceError("this card was tokenized by another provider; run `make seed`")
+        kind, token_id = token.value.removeprefix(TOKEN_PREFIX).split(":", 1)
+        payment = {"customer": {"id": token_id}} if kind == "customer" else {"paymentInstrument": {"id": token_id}}
         status, body = self._request("POST", "/pts/v2/payments", {
             # The Payment Instruction (ADR 1): the authorization carries the
             # instruction the shopper confirmed, so it cannot be reused.
             "clientReferenceInformation": {"code": instruction_id},
-            "paymentInformation": {"customer": {"id": token.value.removeprefix(TOKEN_PREFIX)}},
+            "paymentInformation": payment,
             "orderInformation": {"amountDetails": {"totalAmount": _amount(amount_cents), "currency": CURRENCY}},
         })
         if status == 201 and body.get("status") == "AUTHORIZED":

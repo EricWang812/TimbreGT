@@ -24,6 +24,14 @@ alternatives considered and why they were rejected.
 
 ---
 
+### 2026-09-26 17:45 - Visa provider: live sandbox run; payment instrument tokens
+
+- **Files:** issuer/payments/visa_provider.py, tests/test_visa_provider.py, docs/DECISIONS.md, docs/CHANGELOG.md.
+- **What:** First live run against the CyberSource sandbox with the team's keys. HTTP Signature authentication is accepted (lookups return 200/404, never 401), and both demo cards read back through Token Management (Visa ending 1111, Mastercard ending 4444). The Business Center had issued payment instrument tokens, not customer tokens, so the provider now accepts either: it tries the customer endpoint, then `/tms/v1/paymentinstruments/{id}`, stores `cybs:customer:<id>` or `cybs:instrument:<id>`, and authorizes with `paymentInformation.customer` or `paymentInformation.paymentInstrument` accordingly. Card types reported by name ("visa") are understood as well as codes ("001").
+- **Why:** Needed to charge the tokens the dashboard actually produced.
+- **Verify:** `make test` (349 passed, with a new payment-instrument test). Live: token reads succeed for both cardholders.
+- **Risk/Notes:** Every live authorization returns 502 `SERVER_ERROR / SYSTEM_ERROR` "General system failure", including a one-off diagnostic sent with CyberSource's public sandbox Visa test number directly (not stored anywhere). That points to the new sandbox account's payment provisioning, not the request; CyberSource support must re-sync the merchant profile, quoting a payment ID from the failed attempts. `PAYMENT_PROVIDER` stays `stripe` until an authorization succeeds, so the demo keeps working. Capture statuses remain unconfirmed live.
+
 ### 2026-09-26 17:15 - Visa payment provider on the CyberSource sandbox (ADR 13)
 
 - **Files:** issuer/payments/visa_provider.py (new), issuer/payments/__init__.py, issuer/config.py, scripts/seed_demo.py, tests/test_visa_provider.py (new), .env.example, AGENTS.md, docs/ALGORITHM.md, docs/DECISIONS.md, docs/CHANGELOG.md.
