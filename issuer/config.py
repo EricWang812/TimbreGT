@@ -100,3 +100,17 @@ VISA_CERT_PATH = os.environ.get("VISA_CERT_PATH", "")
 VISA_KEY_PATH = os.environ.get("VISA_KEY_PATH", "")
 VISA_USER_ID = os.environ.get("VISA_USER_ID", "")
 VISA_PASSWORD = os.environ.get("VISA_PASSWORD", "")
+# PAYMENT_PROVIDER=visa runs checkout through CyberSource, Visa's payment
+# gateway, in its sandbox (issuer/payments/visa_provider.py, ADR 13). Keys come
+# from the CyberSource Business Center (REST shared secret). Each demo
+# cardholder's card is a CyberSource customer token created in that dashboard
+# from a Visa test card, so no card number is ever in this repo (§2.2).
+CYBERSOURCE_HOST = "apitest.cybersource.com"   # sandbox only; the provider refuses anything else
+CYBERSOURCE_MERCHANT_ID = os.environ.get("CYBERSOURCE_MERCHANT_ID", "")
+CYBERSOURCE_KEY_ID = os.environ.get("CYBERSOURCE_KEY_ID", "")
+CYBERSOURCE_SECRET_KEY = os.environ.get("CYBERSOURCE_SECRET_KEY", "")
+CYBERSOURCE_CUSTOMER_TOKENS = {
+    "maya": os.environ.get("CYBERSOURCE_CUSTOMER_MAYA", ""),
+    "jordan": os.environ.get("CYBERSOURCE_CUSTOMER_JORDAN", ""),
+}
+CYBERSOURCE_TIMEOUT_S = 20.0

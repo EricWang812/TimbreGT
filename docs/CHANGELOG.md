@@ -24,6 +24,14 @@ alternatives considered and why they were rejected.
 
 ---
 
+### 2026-09-26 17:15 - Visa payment provider on the CyberSource sandbox (ADR 13)
+
+- **Files:** issuer/payments/visa_provider.py (new), issuer/payments/__init__.py, issuer/config.py, scripts/seed_demo.py, tests/test_visa_provider.py (new), .env.example, AGENTS.md, docs/ALGORITHM.md, docs/DECISIONS.md, docs/CHANGELOG.md.
+- **What:** `PAYMENT_PROVIDER=visa` now runs checkout through CyberSource, Visa's payment gateway, in its sandbox, instead of raising NotImplementedError. HTTP Signature auth with the standard library and httpx (no new dependency); authorize with the customer token and the `instruction_id` as client reference; capture repeats the amount; a failed capture reverses the hold; any host but `apitest.cybersource.com` is refused. Cards are CyberSource customer token IDs from `.env` (`CYBERSOURCE_CUSTOMER_MAYA`, `_JORDAN`), never card numbers; the last four are read back from Token Management. `make seed` replaces a card tokenized by another provider in place, so switching providers keeps voice enrollments and passkeys. Card nicknames are now label plus reported brand ("Everyday Visa"). `get_provider()` gains a test-only `transport` argument so tests reach the provider through it, keeping the §6 import guard strict.
+- **Why:** The team wants checkout on Visa instead of Stripe; this is the Visa rail open to us without VIC access or storing a card number (§2.2).
+- **Verify:** `make test` (348 passed; 5 new tests check the HTTP Signature exactly as the gateway would, the request bodies, declines versus credential errors, reversal on a failed capture, and the sandbox-only guard). Live: fill the five `CYBERSOURCE_*` values in `.env`, set `PAYMENT_PROVIDER=visa`, run `make seed`, restart the issuer, and complete a purchase.
+- **Risk/Notes:** Not yet run against the live sandbox: no keys were available. Capture success statuses (`PENDING`, `TRANSMITTED`) are from documentation and need confirming on the first live run. Stripe stays the default. The five new `.env` keys were appended blank to the local `.env`; existing values were not read or changed.
+
 ### 2026-09-26 16:30 - The boardwalk: four themed shops, one cart
 
 - **Files:** scripts/seed_catalog.json, scripts/seed_demo.py, web/public/products/ (35 new photos), api/db.py, api/catalog.py, api/commerce_agent.py, api/openai_intent.py, api/ambiguity_resolution.py, web/src/lib/shops.js (new), web/src/pages/Shop.jsx, web/src/components/{Icons,CartDrawer}.jsx, web/src/pages/Checkout.jsx, web/src/components/AgenticVoiceShopping.jsx, web/src/App.jsx, web/src/styles.css, tests/test_boundary.py, tests/test_shopping.py, tests/test_ambiguity_resolution.py, README.md, docs/DEVPOST.md, AGENTS.md, docs/CHANGELOG.md.

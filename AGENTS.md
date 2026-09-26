@@ -4,7 +4,7 @@
 
 **First action:** read this file, then `docs/CHANGELOG.md` (newest first), `docs/DECISIONS.md` (ADR 2-4), and `docs/CONTEXT.md` §12. Read `docs/ALGORITHM.md` before touching `issuer/`, `ml/`, or payments. Then give the person running Codex a short summary: what is done, what is next, open decisions.
 
-**Done (Phases 0-6, 96 tests pass via `make test` as of Phase 8):** three services (merchant :8000, issuer :8100, Vite web :5173); privacy boundary (merchant learns only `{verified, transaction_id}`, enforced by tests); accessible storefront + bank widget; ECAPA enrollment, interleaved (ADR 4), held-out spread thresholds (ADR 3); voice challenge 2-of-3 with replay check and 2-attempt fallback; real WebAuthn passkeys; Stripe test-mode payments. Stubs remaining: enrollment/passkey registration have no auth (demo sign-in); `visa_provider` not built.
+**Done (Phases 0-6, 96 tests pass via `make test` as of Phase 8):** three services (merchant :8000, issuer :8100, Vite web :5173); privacy boundary (merchant learns only `{verified, transaction_id}`, enforced by tests); accessible storefront + bank widget; ECAPA enrollment, interleaved (ADR 4), held-out spread thresholds (ADR 3); voice challenge 2-of-3 with replay check and 2-attempt fallback; real WebAuthn passkeys; Stripe test-mode payments. Stubs remaining: enrollment/passkey registration have no auth (demo sign-in). `visa_provider` is built on the CyberSource sandbox (ADR 13) but not yet run against live sandbox keys.
 
 **Also done since the Codex handoff (109 tests):** Phase 8 run (`make eval`; ADR 3: EER 6.7% control, 8.8% dysarthric). Phase 7 code (merchant n-best ASR, LLM rerank, keyword fallback, confirm-before-add UI), checked against real Whisper. Baseline page (`#/baseline`, `make baseline`). Phase 9 adaptation in the live voice path plus Dashboard drift chart (`#/dashboard`, `make drift`). Numbers are in the 2026-09-26 00:40 CHANGELOG entry. Each demo machine needs `scripts.warm_asr`, then `make eval && make baseline && make drift` once (outputs are gitignored).
 
@@ -692,6 +692,11 @@ VISA_CERT_PATH=
 VISA_KEY_PATH=
 VISA_USER_ID=
 VISA_PASSWORD=
+CYBERSOURCE_MERCHANT_ID=         # PAYMENT_PROVIDER=visa (ADR 13): CyberSource sandbox
+CYBERSOURCE_KEY_ID=
+CYBERSOURCE_SECRET_KEY=
+CYBERSOURCE_CUSTOMER_MAYA=       # customer token IDs from the Business Center, never card numbers
+CYBERSOURCE_CUSTOMER_JORDAN=
 LLM_PROVIDER=anthropic           # anthropic | gemini
 LLM_API_KEY=
 OPENAI_API_KEY=                  # agentic shopping only; server-side

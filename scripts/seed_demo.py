@@ -22,8 +22,8 @@ from datetime import datetime, timezone
 from api import db as merchant_db
 from api.catalog import MARKET_IDS
 from issuer import db as issuer_db
-from issuer.config import STRIPE_SECRET_KEY
-from issuer.payments import get_provider
+from issuer.config import CYBERSOURCE_CUSTOMER_TOKENS
+from issuer.payments import active_provider_name, get_provider, token_is_current
 from ml.constants import REPO_ROOT
 
 CATALOG_FILE = REPO_ROOT / "scripts" / "seed_catalog.json"
@@ -37,12 +37,25 @@ IMAGE_CREDITS = {
     "products": "Photo: Open Products Facts contributors, CC BY-SA 3.0",
 }
 DEFAULT_MARKET = "grocer"   # a product without a "market" key is sold by Seaside Grocer
-FAKE_TOKEN_PREFIX = "fake_tok_"   # tokens minted by issuer/payments/fake_provider.py
 
+# "test_token" is a Stripe named test PaymentMethod (also understood by the
+# fake provider). With PAYMENT_PROVIDER=visa the card is instead the
+# cardholder's CyberSource customer token from .env. The shown nickname is the
+# label plus the card brand the provider reports ("Everyday Visa").
 DEMO_CARDHOLDERS = [
-    {"id": "maya", "display_name": "Maya Torres", "test_token": "pm_card_visa", "nickname": "Everyday Visa"},
-    {"id": "jordan", "display_name": "Jordan Lee", "test_token": "pm_card_mastercard", "nickname": "Travel Mastercard"},
+    {"id": "maya", "display_name": "Maya Torres", "test_token": "pm_card_visa", "label": "Everyday"},
+    {"id": "jordan", "display_name": "Jordan Lee", "test_token": "pm_card_mastercard", "label": "Travel"},
 ]
+
+
+def _card_reference(holder: dict) -> str:
+    if active_provider_name() != "visa":
+        return holder["test_token"]
+    reference = CYBERSOURCE_CUSTOMER_TOKENS.get(holder["id"], "")
+    if not reference:
+        raise RuntimeError(f"PAYMENT_PROVIDER=visa: set CYBERSOURCE_CUSTOMER_{holder['id'].upper()} in .env "
+                           "to the customer token ID from the CyberSource Business Center")
+    return reference
 
 
 def _now() -> str:
@@ -83,14 +96,15 @@ def seed_cardholders() -> list[str]:
                          (holder["id"], holder["display_name"], _now()))
         existing = issuer_db.fetch_one("SELECT id, token_value FROM payment_tokens WHERE user_id = ?",
                                        (holder["id"],))
-        # A fake-provider token is replaced once a Stripe key is configured, in
-        # place, so voice enrollments and passkeys are kept (no `make reset`).
-        stale = existing is not None and STRIPE_SECRET_KEY and existing["token_value"].startswith(FAKE_TOKEN_PREFIX)
+        # A card tokenized by a different provider (switching Stripe, Visa, or
+        # the offline fake) is replaced in place, so voice enrollments and
+        # passkeys are kept (no `make reset`).
+        stale = existing is not None and not token_is_current(existing["token_value"])
         if existing is not None and not stale:
             continue
-        # Tokenize outside any transaction: with Stripe this is a network call.
-        token = dataclasses.replace(provider.create_token(holder["id"], holder["test_token"]),
-                                    nickname=holder["nickname"])
+        # Tokenize outside any transaction: with Stripe or Visa this is a network call.
+        token = provider.create_token(holder["id"], _card_reference(holder))
+        token = dataclasses.replace(token, nickname=f"{holder['label']} {token.nickname}")
         with issuer_db.transaction() as conn:
             if stale:
                 conn.execute("UPDATE payment_tokens SET token_value = ?, last_four = ?, nickname = ? WHERE id = ?",
@@ -101,7 +115,7 @@ def seed_cardholders() -> list[str]:
                     " VALUES (?, ?, ?, ?, ?)",
                     (holder["id"], token.value, token.last_four, token.nickname, _now()),
                 )
-        verb = "re-tokenized with Stripe" if stale else "created"
+        verb = f"re-tokenized with {active_provider_name()}" if stale else "created"
         created.append(f"{holder['display_name']} ({token.nickname} ending {token.last_four}, {verb})")
     return created
 

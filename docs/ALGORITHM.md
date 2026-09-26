@@ -169,6 +169,9 @@ arrive.
   `PAYMENT_PROVIDER` environment variable. Never import a concrete provider
   outside `issuer/payments/`.
 - Ship on Stripe test mode.
+- Also selectable: `PAYMENT_PROVIDER=visa` runs checkout through CyberSource,
+  Visa's payment gateway, in its sandbox (ADR 13). It is not Visa Intelligent
+  Commerce and must not be described as VIC.
 - Separately, get one real authenticated Visa sandbox call working (Visa Direct
   sandbox is open to any developer) purely to prove we cleared two-way SSL.
   Capture the response and put it in the Devpost.
