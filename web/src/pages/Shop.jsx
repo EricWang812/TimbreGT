@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import VoiceShopping from "../components/VoiceShopping.jsx";
+import AgenticVoiceShopping from "../components/AgenticVoiceShopping.jsx";
 import PageHeading from "../components/PageHeading.jsx";
 import ProductCard, { SkeletonCard } from "../components/ProductCard.jsx";
 import { LockIcon, TruckIcon } from "../components/Icons.jsx";
@@ -39,7 +40,7 @@ function itemsText(n) {
   return n === 1 ? "1 item" : `${n} items`;
 }
 
-export default function Shop({ catalog }) {
+export default function Shop({ catalog, onOpenCart }) {
   const groups = SECTIONS
     .map(([key, label, categories]) => [key, label, catalog.products.filter((p) => categories.includes(p.category))])
     .filter(([, , items]) => items.length > 0);
@@ -72,6 +73,8 @@ export default function Shop({ catalog }) {
         {showVoice && <VoiceShopping products={catalog.products} />}
         {loading && <div className="voice-shopping voice-placeholder" aria-hidden="true" />}
       </div>
+
+      {showVoice && <AgenticVoiceShopping onOpenCart={onOpenCart} />}
 
       {loading && (
         <div className="stack">

@@ -55,3 +55,27 @@ export const shoppingVoice = (wav, signal) => {
   body.append("audio", wav, "shopping.wav");
   return shoppingRequest("/shopping/voice", body, signal);
 };
+
+export const transcribeAgenticShopping = (wav, signal) => {
+  const body = new FormData();
+  body.append("audio", wav, "agentic-shopping.wav");
+  return shoppingRequest("/agentic-shopping/transcribe", body, signal);
+};
+export const extractAgenticIntent = (transcript, signal) =>
+  shoppingRequest("/agentic-shopping/intent", { transcript }, signal, true);
+export const startAgenticClarifications = (intent, signal) =>
+  shoppingRequest("/agentic-shopping/clarifications", intent, signal, true);
+export const answerAgenticClarification = (state, answer, signal) =>
+  shoppingRequest("/agentic-shopping/clarifications/answer", { state, answer }, signal, true);
+export const finalizeAgenticShopping = (state, signal) =>
+  shoppingRequest("/agentic-shopping/finalize", state, signal, true);
+
+// The agent returns the complete server-priced cart. The caller applies
+// `items` to the existing CartProvider only when status is "cart_ready".
+export const prepareAgenticCart = (finalizedRequest, lines, signal) =>
+  shoppingRequest(
+    "/agentic-shopping/commerce/prepare-cart",
+    { finalizedRequest, existingItems: toItems(lines) },
+    signal,
+    true,
+  );

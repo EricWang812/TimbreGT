@@ -76,7 +76,7 @@ function Shell() {
       <SiteHeader onOpenCart={() => setCartOpen(true)} />
       {/* key: each route mounts fresh, so the .route-enter fade (styles.css) replays on navigation. */}
       <main id="main-content" tabIndex={-1} key={route.name} className="route-enter">
-        {route.name === "shop" && <Shop catalog={catalog} />}
+        {route.name === "shop" && <Shop catalog={catalog} onOpenCart={() => setCartOpen(true)} />}
         {route.name === "checkout" && <Checkout products={catalog.byId} />}
         {route.name === "baseline" && <Baseline />}
         {route.name === "dashboard" && <Dashboard />}

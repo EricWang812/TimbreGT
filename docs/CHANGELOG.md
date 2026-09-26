@@ -24,6 +24,80 @@ alternatives considered and why they were rejected.
 
 ---
 
+### 2026-09-26 11:45 - Record live agentic text-stage simulations
+
+- **Files:** AGENTS.md, docs/CHANGELOG.md.
+- **What:** Recorded two live OpenAI intent and clarification simulations that deliberately skipped speech transcription. The banana request completed confirmation, finalization, catalog selection, and cart preparation successfully. The boys-headphones request was held at medium-confidence clarification and supported a targeted correction after rejection, but misclassified `boys` as use case and optional preference instead of proposing Bose as a possible brand transcription. Added a non-implemented plan for catalog-aware candidate generation and source-span deduplication.
+- **Why:** The requested simulations needed to verify whether a likely recognition error is surfaced instead of silently becoming confirmed commerce intent.
+- **Verify:** Start the merchant API with `.venv/bin/python -m uvicorn api.main:app --port 8000 --env-file .env`; post each supplied transcript to `/agentic-shopping/intent`; post the response to `/agentic-shopping/clarifications`; confirm the first returns product, maximum price, and quantity questions and reaches `cart_ready` after confirmation; confirm the second asks about medium-confidence `boys` and asks for a single-field correction after rejection.
+- **Risk/Notes:** The safety behavior passed because the uncertain value blocks finalization until confirmed or corrected. Semantic repair remains incomplete because Bose was not proposed and one heard span produced two optional-field questions. The improvement plan is documentation only. No application code, dependency, Whisper path, cart, authentication, checkout, issuer, or payment behavior changed.
+
+### 2026-09-26 11:30 - Complete additive agentic voice shopping flow
+
+- **Files:** web/src/components/AgenticVoiceShopping.jsx (new), web/src/App.jsx, web/src/pages/Shop.jsx, web/src/lib/api.js, web/src/lib/cart.jsx, web/src/styles.css, AGENTS.md.
+- **What:** Added the separate full-request voice panel and connected every existing agentic backend stage in order: shared audio capture, OpenAI transcription, structured intent extraction, targeted clarification, final intent, commerce selection, and validated cart application. The panel preserves and displays the raw transcript separately, shows extracted fields, verifies item, quantity, price, and every supplied optional preference, accepts a correction for only the active field, reports progress and failures, and exposes Review cart and Continue to checkout only after Cart Ready. Cart replacement validates the complete payload and refuses to overwrite concurrent cart edits. The existing Whisper panel and `/shopping/voice` path remain present and unchanged.
+- **Why:** Features 6 through 10 complete the additive speech-to-commerce experience while preserving the existing cart, authentication, issuer, payment, checkout, and Whisper implementations.
+- **Verify:** `.venv/bin/python -m pip install -r requirements.txt`; `.venv/bin/python -m pip check`; `.venv/bin/python -m pytest -q tests/test_agentic_transcription.py tests/test_agentic_intent.py tests/test_ambiguity_resolution.py tests/test_final_intent.py tests/test_commerce_agent.py` (27 passed); `make test` outside the restricted process sandbox (159 passed); `npm --prefix web run build` (66 modules); `git diff --check`; open `http://localhost:5173/` and confirm both Shop by voice panels appear, with the new full-request panel below the existing one.
+- **Risk/Notes:** A live OpenAI round trip was not run because it requires a valid backend-only `OPENAI_API_KEY`. Provider calls are covered by mocked tests. The agent cannot create an instruction, authenticate, contact the issuer, approve payment, or place an order; it stops at Cart Ready and uses the existing checkout. No new dependency was added. The full suite retains two pre-existing SpeechBrain `torch.load` future warnings.
+
+### 2026-09-26 11:15 - Agentic shopping Feature 5: commerce agent and prepared cart
+
+- **Files:** api/commerce_agent.py (new), api/agentic_shopping.py, web/src/lib/api.js, tests/test_commerce_agent.py (new), AGENTS.md.
+- **What:** Added `POST /agentic-shopping/commerce/prepare-cart`. The deterministic commerce adapter searches and ranks the existing catalog against the finalized product, brand, size, merchant, USD budget, quantity, and important requirements; refuses unsupported color variants and other hard mismatches; merges the selected quantity with caller-supplied existing cart lines; and prices the complete result through the existing server cart pricer. No-match responses preserve existing items. Use-case and optional-preference limitations are returned explicitly. Added a frontend API adapter that sends the current CartProvider lines and receives the full prepared cart.
+- **Why:** Feature 5 connects confirmed structured intent to real catalog selection and the existing browser-cart contract without creating a second catalog, cart, or pricing implementation.
+- **Verify:** `.venv/bin/python -m pip install -r requirements.txt`; `.venv/bin/python -m pip check`; `.venv/bin/python -m pytest -q tests/test_agentic_transcription.py tests/test_agentic_intent.py tests/test_ambiguity_resolution.py tests/test_final_intent.py tests/test_commerce_agent.py` (27 passed); `make test` outside the restricted process sandbox (159 passed); `npm --prefix web run build`.
+- **Risk/Notes:** The current agentic UI is not built, so no component applies the returned lines to CartProvider yet. The endpoint prepares and prices the full replacement payload but does not persist browser state. It cannot call checkout, the issuer, authentication, or payment. Catalog metadata has no color field, so color-constrained requests return no match. No new dependency was added. The existing Whisper shopping UI and purchase flow were not changed.
+
+### 2026-09-26 11:00 - Verify all supplied constraints with three mandatory fields
+
+- **Files:** api/ambiguity_resolution.py, api/final_intent.py, api/openai_intent.py, tests/test_ambiguity_resolution.py, tests/test_final_intent.py, AGENTS.md.
+- **What:** Revised Feature 3 to verify every supplied request aspect before finalization. Product, quantity, and maximum price are mandatory and generate an open correction question when missing. Brand, size, color, merchant, use case, important requirements, and optional preferences are optional when absent, but generate Yes/No confirmation when supplied. Rejection still asks for only that field. Feature 4 now requires typed product, price, and quantity while leaving absent optional fields empty. The extraction prompt documents the same required/optional boundary.
+- **Why:** The user requires full request verification while keeping brand, size, color, merchant, use case, and similar refinements optional.
+- **Verify:** `.venv/bin/python -m pip install -r requirements.txt`; `.venv/bin/python -m pip check`; `.venv/bin/python -m pytest -q tests/test_agentic_transcription.py tests/test_agentic_intent.py tests/test_ambiguity_resolution.py tests/test_final_intent.py` (21 passed); `make test` outside the restricted process sandbox (153 passed); `npm --prefix web run build`.
+- **Risk/Notes:** A detailed request now creates one targeted confirmation per supplied field, which is intentionally more thorough but adds interaction steps. Missing optional fields do not create questions or block finalization. No new dependency was added. Existing Whisper, cart, issuer, authentication, and checkout code remains unchanged.
+
+### 2026-09-26 10:45 - Agentic shopping Feature 4: final structured intent
+
+- **Files:** api/final_intent.py (new), api/ambiguity_resolution.py, api/openai_intent.py, api/agentic_shopping.py, tests/test_final_intent.py (new), AGENTS.md.
+- **What:** Added `POST /agentic-shopping/finalize`, which recomputes client-carried clarification state and produces a typed final shopping request from high-confidence extracted fields and confirmed or corrected values. It refuses pending, missing, unclear, and non-shopping requests; omits unconfirmed medium or low-confidence values; validates finite nonnegative prices and positive whole quantities; and retains the raw transcript, original extraction, and clarification answers beside the final request. Feature 2 now instructs OpenAI to use exact schema field names for missing information, and Feature 3 turns those declared missing fields into targeted questions.
+- **Why:** Feature 4 creates the safe handoff object that a commerce agent can consume without treating unresolved model guesses as facts.
+- **Verify:** `.venv/bin/python -m pip install -r requirements.txt`; `.venv/bin/python -m pip check`; `.venv/bin/python -m pytest -q tests/test_agentic_transcription.py tests/test_agentic_intent.py tests/test_ambiguity_resolution.py tests/test_final_intent.py` (21 passed); `make test` outside the restricted process sandbox (153 passed); `npm --prefix web run build`.
+- **Risk/Notes:** The endpoint is backend-only and does not yet search products or populate the cart. It recomputes answers against the supplied original extraction but does not persist or sign client-carried state; Feature 5 must still validate the typed final request at its commerce boundary. No new third-party import was added, so `requirements.txt` did not change. Existing Whisper, cart, issuer, authentication, and checkout files were not changed.
+
+### 2026-09-26 10:30 - Agentic shopping Feature 3: ambiguity resolution
+
+- **Files:** api/ambiguity_resolution.py (new), api/agentic_shopping.py, tests/test_ambiguity_resolution.py (new), AGENTS.md.
+- **What:** Added client-carried clarification state and separate start/answer endpoints. The resolver asks only about material ambiguous fields, presents Yes/No for a proposed interpretation, converts rejection into a short correction question for that field, and asks for a missing critical product. It retains the exact raw transcript, original structured extraction, per-field answers, separately resolved values, and pending questions. Invalid, stale, unsupported, empty, or unrelated answers fail with 422. It does not call OpenAI, search products, alter the cart, contact the issuer, or finalize intent.
+- **Why:** Feature 3 lets users repair one uncertain field without repeating a full request and prevents unresolved model guesses from becoming shopping facts.
+- **Verify:** `.venv/bin/python -m pip install -r requirements.txt`; `.venv/bin/python -m pip check`; `.venv/bin/python -m pytest -q tests/test_agentic_transcription.py tests/test_agentic_intent.py tests/test_ambiguity_resolution.py` (15 passed); `make test` outside the restricted process sandbox (147 passed); `npm --prefix web run build`.
+- **Risk/Notes:** The endpoints are not connected to the UI yet. State is carried by the client to fit the existing React local-state pattern and is recomputed before each answer. Feature 4 must create a typed final intent and must refuse incomplete clarification state. No third-party imports were added, so `requirements.txt` did not change for this feature. Existing Whisper, cart, issuer, authentication, and checkout files were not changed.
+
+### 2026-09-26 10:15 - Pin direct intent-schema dependency
+
+- **Files:** requirements.txt.
+- **What:** Added the installed Pydantic 2.13.5 version as an explicit dependency because the agentic intent schema imports Pydantic directly rather than relying on FastAPI to install it transitively.
+- **Why:** Direct imports should be reproducible from `requirements.txt` on a clean system.
+- **Verify:** `.venv/bin/python -m pip install -r requirements.txt`; `.venv/bin/python -m pip check`; `.venv/bin/python -m pytest -q tests/test_agentic_transcription.py tests/test_agentic_intent.py`; `make test`.
+- **Risk/Notes:** No application behavior changed. Standard-library imports need no package entry, and all other third-party imports used by Features 1 and 2 were already pinned directly.
+
+### 2026-09-26 10:00 - Agentic shopping Feature 2: structured intent extraction
+
+- **Files:** api/openai_intent.py (new), api/agentic_shopping.py, api/config.py, tests/test_agentic_intent.py (new), AGENTS.md.
+- **What:** Added a separate `POST /agentic-shopping/intent` backend stage using OpenAI `gpt-4.1-mini` with strict JSON Schema Structured Outputs. It returns the unchanged raw transcript beside a locally validated interpretation of product, brand, maximum price, quantity, size, color, merchant preference, use case, requirements, optional preferences, missing information, and material ambiguities. Every scalar field carries confidence and exact supporting source text. Possible recognition mistakes keep both the heard text and an unconfirmed proposal. The prompt treats transcripts as untrusted data, OpenAI response storage is disabled, invalid model output is rejected, and provider details are not exposed.
+- **Why:** Feature 2 requires commerce interpretation to remain distinct from transcription and to surface uncertainty before any shopping action.
+- **Verify:** `.venv/bin/python -m pytest -q tests/test_agentic_transcription.py tests/test_agentic_intent.py` (10 passed); `make test` outside the restricted process sandbox (142 passed); `npm --prefix web run build`; OpenAPI contains both additive routes and both existing Whisper shopping routes.
+- **Risk/Notes:** No live OpenAI request was made because no `OPENAI_API_KEY` was supplied. The intent route is not connected to the UI and does not yet resolve ambiguities, finalize intent, search products, or populate the cart. `api/asr.py`, `api/llm.py`, `api/shopping.py`, the existing voice-shopping UI, cart, issuer, authentication, and checkout were not changed.
+
+### 2026-09-26 09:30 - Agentic shopping Feature 1: OpenAI transcription
+
+- **Files:** api/openai_transcription.py (new), api/agentic_shopping.py (new), api/config.py, api/main.py, .env.example, tests/test_agentic_transcription.py (new), AGENTS.md.
+- **What:** Added a separate `POST /agentic-shopping/transcribe` backend route that validates the existing recorder's mono 16 kHz WAV and sends it to OpenAI `gpt-4o-transcribe`. The dedicated service returns the provider transcript exactly, with no trimming, normalization, shopping reasoning, catalog access, cart mutation, issuer call, or audio persistence. Missing keys, empty/silent/malformed audio, provider failures, malformed responses, and empty transcripts return actionable errors without exposing provider details.
+- **Why:** Feature 1 of the additive OpenAI agentic-purchase pipeline requires an isolated audio-to-text stage while preserving the working local Whisper flow.
+- **Verify:** `.venv/bin/python -m pytest -q tests/test_agentic_transcription.py` (5 passed); `make test` (137 passed); `npm --prefix web run build`; OpenAPI contains `/shopping/voice`, `/shopping/text`, and `/agentic-shopping/transcribe`.
+- **Risk/Notes:** No live OpenAI call was made because no `OPENAI_API_KEY` was supplied. The new endpoint is not connected to the UI yet. `api/asr.py`, `/shopping/voice`, `/shopping/text`, and `VoiceShopping.jsx` were not changed. No new dependency was added; the service uses pinned `httpx`. During verification, the route-preservation test was adjusted to inspect FastAPI's generated OpenAPI paths because this FastAPI version stores included routers behind internal route markers; application behavior was unaffected.
+
+---
+
 ### 2026-09-26 08:30 - Storefront redesign with purposeful motion
 
 - **Files:** web/src/pages/{Shop,Checkout,Receipt}.jsx, web/src/components/{SiteHeader,VoiceShopping,CartDrawer,Icons}.jsx, web/src/components/ProductCard.jsx (new), web/src/components/jump.js (new), web/src/styles.css, web/src/styles/checkout.css. Built by two helper agents in parallel with strict file ownership, then integrated and reviewed.

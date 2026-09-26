@@ -29,6 +29,11 @@ LLM_TIMEOUT_S = 8.0
 LLM_MAX_TOKENS = 256
 LLM_MODELS = {"anthropic": "claude-haiku-4-5", "gemini": "gemini-2.5-flash-lite"}
 
+# --- Additive OpenAI agentic shopping ---
+OPENAI_TRANSCRIPTION_MODEL = "gpt-4o-transcribe"
+OPENAI_INTENT_MODEL = "gpt-4.1-mini"
+OPENAI_TIMEOUT_S = 20.0
+
 # --- Cart pricing (flat demo rates, not real tax logic) ---
 TAX_RATE_BPS = 400               # basis points: 400 = 4.00%
 SHIPPING_CENTS = 599
@@ -64,3 +69,4 @@ LLM_PROVIDER = _require_choice(
     "LLM_PROVIDER", os.environ.get("LLM_PROVIDER", "anthropic"), {"anthropic", "gemini"}
 )
 LLM_API_KEY = os.environ.get("LLM_API_KEY", "")
+OPENAI_API_KEY = os.environ.get("OPENAI_API_KEY", "")
