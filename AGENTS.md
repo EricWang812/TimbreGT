@@ -12,6 +12,7 @@
 1. Phase 7 live: set `LLM_API_KEY` and try a spoken item end to end. The rerank on-vs-off intent-accuracy delta (§3.2) needs real recordings of people naming catalog items; TORGO has none and §2.3 forbids imitating them.
 2. Decide whether adaptation needs a cumulative drift cap: per-update `MAX_DRIFT` holds, but templates drifted 0.18 to 0.32 over many updates in `make drift` (impostor accept 1.46% -> 1.96%).
 3. Spoken confirmation (§10.3) and dispute drafting (§10.4) are not built.
+3a. Accuracy: cheap candidates were measured and rejected (ADR 7, docs/RESEARCH.md). Next lever is a larger development cohort, then a second embedding model (new dependency).
 4. Phase 10: demo hardening, `docs/DEMO.md`, VIC mapping in ADR 1, README/Devpost (check `docs/CONTEXT.md` §11 before claiming anything).
 
 **Open decisions for the person:** (a) purchases >= $50 fall back to passkey-only after 2 failed voice attempts (recommended keep, record as ADR 5); (b) roll the Stripe test key after the event (it was shared in chat).

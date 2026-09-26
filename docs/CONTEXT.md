@@ -18,7 +18,10 @@ i-vector and x-vector models; reported EER improvements of 15.07% and 22.75%);
 prosodic features plus out-of-domain augmentation (2023); MFCC and LFCC frame-
 level fusion (2024); temporal discriminative bottleneck embeddings (2025). A
 2015 paper already framed dysarthric speakers as excluded from speech-enabled
-biometric solutions.
+biometric solutions. Large-scale studies report ECAPA-class verification going
+from low single-digit EER on typical speech to roughly 16% to 43% on
+pathological speech (arXiv 2204.06450, 2406.06208): cite it as their finding,
+not ours. The full survey behind our accuracy work is `docs/RESEARCH.md`.
 
 **Exists (commercial).** Text-independent and passive voice biometrics are
 standard practice, with deployments at JPMorgan Chase, Wells Fargo, and TD Bank,

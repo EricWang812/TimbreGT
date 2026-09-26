@@ -23,3 +23,5 @@ web/public/baseline/
 web/public/baseline.tmp/
 web/public/drift/
 web/public/drift.tmp/
+docs/variants_results.md
+docs/variants_results.json

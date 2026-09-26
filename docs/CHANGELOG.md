@@ -24,6 +24,16 @@ alternatives considered and why they were rejected.
 
 ---
 
+### 2026-09-26 02:30 - Accuracy research and candidate comparison (ADR 7: none adopted)
+
+- **Files:** docs/RESEARCH.md (new), docs/DECISIONS.md (ADR 7), docs/CONTEXT.md (§11), ml/preprocess.py (new), ml/variants.py (new), scripts/run_variants.py (new), tests/test_variants.py (new), issuer/config.py (candidate constants), Makefile (`variants`), .gitignore, AGENTS.md.
+- **What:** Surveyed published work on improving speaker verification and lowering false accepts (docs/RESEARCH.md, with sources). Built `make variants`: 4 preprocessing variants (plain, energy-based silence trimming, multi-crop, both) times 7 scorers (centroid, top-2 per-sample, mean subtraction, AS-norm k = 10/30/60, mean subtraction plus AS-norm) on the Phase 8 trials, margins calibrated on development speakers to the live policy's development FRR, one development-chosen configuration checked on evaluation speakers. Result: the pick (multi-crop plus mean subtraction) raised FAR in both groups and dysarthric FRR by 5 points, so nothing is adopted; no configuration beat the live dysarthric EER of 8.75%, and trimming hurt dysarthric speakers.
+- **Why:** User asked for research into higher accuracy and fewer false positives; the plan required measuring before changing the live path.
+- **Verify:** `make test` (123 passed); `make eval && make variants`, then read `docs/variants_results.md` (embeddings cached under `data/variant_cache/`; first run about 30 minutes, reruns about 2).
+- **Risk/Notes:** No live behavior changed; the new constants are marked evaluation-only. Disclosed flaw: with 4 development speakers, cohort-based scorers' cohorts overlap development impostors, which flatters them on development (ADR 7). Next levers: a larger development cohort from another corpus, then a stronger or second embedding model (plan Phase 4, new dependency).
+
+---
+
 ### 2026-09-26 00:40 - Baseline page, Phase 9 adaptation, Dashboard drift chart
 
 - **Files:** issuer/verification.py (`adapt`), issuer/approvals.py, issuer/config.py (`BASELINE_MAX_WER`), ml/baseline_asr.py (new), ml/constants.py (`WHISPER_DIR`), api/config.py, api/asr.py, scripts/run_baseline.py (new), scripts/run_drift.py (new), web/src/pages/{Baseline,Dashboard}.jsx (new), web/src/{App.jsx,lib/router.js,styles.css}, Makefile (`baseline`, `drift`), .gitignore, docs/DEMO.md, AGENTS.md, tests/test_{baseline,verification,challenge,shopping}.py.

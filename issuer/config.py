@@ -61,6 +61,19 @@ EVAL_MAX_PROBES = 40
 # so the baseline is not a strawman. Never used for live verification.
 BASELINE_MAX_WER = 0.25
 
+# --- Accuracy candidates (docs/RESEARCH.md). Evaluated by make variants;
+# not used live unless ADR 7 adopts them. ---
+TRIM_FRAME_S = 0.02              # frame length for silence detection
+TRIM_HOP_S = 0.01
+TRIM_DB_BELOW_PEAK = 35.0        # frames this far below the loudest frame are silence
+TRIM_KEEP_CONTEXT_S = 0.10       # speech context kept around each voiced frame
+TRIM_MIN_KEEP_S = 0.5            # never trim below this; keep the untrimmed take instead
+CROP_S = 1.5                     # multi-crop embedding: crop length
+CROP_HOP_S = 0.75
+ASNORM_TOP_K_GRID = (10, 30, 60) # cohort sizes tried on development speakers only
+TOP_K_SAMPLES = 2                # per-sample scoring: mean of the best k enrollment matches
+VARIANT_FRR_BUDGET = 0.02        # a candidate may raise dysarthric FRR by at most this
+
 # --- Storage ---
 DB_BUSY_TIMEOUT_S = 5.0
 

@@ -1,4 +1,4 @@
-.PHONY: dev api issuer web seed eval baseline drift reset test
+.PHONY: dev api issuer web seed eval baseline drift variants reset test
 
 # Ports come from .env (§4.3). Only the port variables are used by make itself;
 # every service also loads .env on its own, so secrets never pass through make.
@@ -46,6 +46,10 @@ baseline:
 # Needs make eval first. Replays adaptation (§7.4) over later TORGO sessions for the Dashboard.
 drift:
 	$(PY) -m scripts.run_drift
+
+# Accuracy candidates (docs/RESEARCH.md, ADR 7): development speakers choose, evaluation speakers score once.
+variants:
+	$(PY) -m scripts.run_variants
 
 reset:
 	$(PY) -m scripts.reset_db
