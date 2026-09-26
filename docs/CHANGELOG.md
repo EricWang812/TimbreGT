@@ -24,6 +24,16 @@ alternatives considered and why they were rejected.
 
 ---
 
+### 2026-09-26 07:00 - Demo hardening: rehearsal, executable demo script, Devpost draft
+
+- **Files:** docs/DEVPOST.md (new, drafted by a helper agent and reviewed), docs/DEMO.md, docs/CONTEXT.md (§16 steps 2 and 5).
+- **What:** Rehearsed the backend end to end with real dysarthric corpus audio (EasyCall speaker m09 enrolled as the demo user through the bank API): `make reset` works on Windows; one sound was flagged for low cohesion and replaced, as designed; a voice approval verified (scores 0.771 and 0.823 against thresholds 0.709 and 0.615) in 559 ms of server verification, a real Stripe test PaymentIntent was captured, and the merchant received exactly `{verified, transaction_id}`; a same-word impostor attempt was rejected (0.337 and 0.457) and the merchant saw `verified: false`. In the browser, the widget asked Maya for her two enrolled sounds with no console errors. DEMO.md step 2 now uses the Baseline page (the widget cannot take a corpus clip), lists one-time prerequisites and live enrollment after every reset, and adds warm-up, sound-choice, and timing notes. CONTEXT §16 no longer says "simulated months". DEVPOST.md is a ready-to-paste draft with every number and caveat traceable to README, ADR 3, ADR 9, and the pre-registration.
+- **Why:** Phase 10 demo hardening.
+- **Verify:** Follow docs/DEMO.md; the rehearsal numbers above come from a scratch script run against `make issuer` and `make api`.
+- **Risk/Notes:** Still needs a human: a real microphone enrollment and approval, a Windows Hello passkey, and the backup video. One unexplained page reload on the first browser run after startup; not reproduced. The full voice response is about 2.6 s because it includes Stripe; "Checked in X seconds" shows the verification alone.
+
+---
+
 ### 2026-09-26 06:20 - README reflects what is built and measured
 
 - **Files:** README.md.
