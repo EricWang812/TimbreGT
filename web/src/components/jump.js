@@ -7,6 +7,9 @@ import { navigate } from "../lib/router.js";
 // empty state) can reach the voice panel without importing it.
 export const VOICE_START_ID = "voice-shopping-start";
 export const VOICE_TITLE_ID = "voice-shopping-title";
+export const AGENTIC_VOICE_START_ID = "agentic-voice-shopping-start";
+export const AGENTIC_VOICE_TITLE_ID = "agentic-shopping-title";
+export const STANDARD_VOICE_FALLBACK_EVENT = "timbre:standard-voice-fallback";
 
 export function prefersMotion() {
   return window.matchMedia("(prefers-reduced-motion: no-preference)").matches;
@@ -35,4 +38,43 @@ export function focusVoiceShopping() {
   }
   if (!document.getElementById(VOICE_START_ID)) navigate("/");
   attempt(60);
+}
+
+// The header starts the full-request agent when it is on the page. The
+// original Whisper recorder remains the fallback when that additive panel is
+// unavailable. A disabled recorder is already doing work, so focus its title
+// instead of starting the other recorder at the same time.
+export function startHeaderVoiceShopping() {
+  function start(buttonId, titleId) {
+    const button = document.getElementById(buttonId);
+    const title = document.getElementById(titleId);
+    if (!button || !title) return false;
+    const section = title.closest("section") ?? title;
+    const active = button.hasAttribute("data-voice-active");
+    scrollAndFocus(section, button.disabled || active ? title : button);
+    if (!button.disabled && !active) button.click();
+    return true;
+  }
+
+  function attempt(framesLeft) {
+    if (start(AGENTIC_VOICE_START_ID, AGENTIC_VOICE_TITLE_ID)) return;
+    if (start(VOICE_START_ID, VOICE_TITLE_ID)) return;
+    if (framesLeft > 0) requestAnimationFrame(() => attempt(framesLeft - 1));
+  }
+
+  if (!document.getElementById(AGENTIC_VOICE_START_ID)
+      && !document.getElementById(VOICE_START_ID)) navigate("/");
+  attempt(180);
+}
+
+// An agentic provider outage should not make a person repeat their speech.
+// The legacy VoiceShopping panel accepts the same WAV and prevents this
+// cancelable event to report that it took ownership of the recording.
+export function requestStandardVoiceFallback(wav) {
+  const accepted = !window.dispatchEvent(new CustomEvent(
+    STANDARD_VOICE_FALLBACK_EVENT,
+    { detail: { wav }, cancelable: true },
+  ));
+  if (accepted) focusVoiceShopping();
+  return accepted;
 }

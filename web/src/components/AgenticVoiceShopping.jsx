@@ -10,6 +10,11 @@ import { useCart } from "../lib/cart.jsx";
 import { formatCents } from "../lib/money.js";
 import { AGENTIC_MAX_SECONDS, startRecording } from "../lib/shoppingRecorder.js";
 import { MicIcon, StopIcon } from "./Icons.jsx";
+import {
+  AGENTIC_VOICE_START_ID,
+  AGENTIC_VOICE_TITLE_ID,
+  requestStandardVoiceFallback,
+} from "./jump.js";
 
 const LABELS = {
   product: "Item", quantity: "Quantity", maxPrice: "Price limit", brand: "Brand",
@@ -65,6 +70,7 @@ export default function AgenticVoiceShopping({ onOpenCart }) {
   const listening = phase === "listening";
   const request = extraction?.extractedRequest;
   const several = (request?.items?.length ?? 0) > 1;
+  const active = !["idle", "ready", "error"].includes(phase);
 
   useEffect(() => () => {
     run.current += 1;
@@ -153,7 +159,15 @@ export default function AgenticVoiceShopping({ onOpenCart }) {
       const state = await startBasketClarifications(extracted, signal);
       if (currentRun !== run.current) return;
       await continueResolution(state, signal, currentRun);
-    }, (err) => { setPhase("error"); setMessage(err.message || "Timbre could not process that request. Your cart was not changed."); });
+    }, (err) => {
+      if (err.status === 503 && requestStandardVoiceFallback(wav)) {
+        setPhase("error");
+        setMessage("Agentic shopping is unavailable, so Timbre continued with standard voice shopping.");
+        return;
+      }
+      setPhase("error");
+      setMessage(err.message || "Timbre could not process that request. Your cart was not changed.");
+    });
   }
 
   async function stop() {
@@ -218,14 +232,14 @@ export default function AgenticVoiceShopping({ onOpenCart }) {
   }[phase];
   const kept = result?.lines?.filter((line) => line.product && line.quantity && !line.skipped) ?? [];
 
-  return <section className="agentic-shopping stack" aria-labelledby="agentic-shopping-title">
+  return <section className="agentic-shopping stack" aria-labelledby={AGENTIC_VOICE_TITLE_ID}>
     <div className="section-head agentic-head">
-      <div><p className="eyebrow">New agentic path</p><h2 id="agentic-shopping-title">Shop a full request by voice</h2></div>
+      <div><p className="eyebrow">New agentic path</p><h2 id={AGENTIC_VOICE_TITLE_ID} tabIndex={-1}>Shop a full request by voice</h2></div>
       <p className="note">Say it the way you would to a person: “two cokes and as much yogurt as fits in ten dollars,” or “what I need for tuna salad.” Timbre asks only if it is unsure.</p>
     </div>
     <p>Timbre fills in your cart and shows you what it did. For a meal, it shows the list first. Nothing is bought until you check out.</p>
     <div className="voice-shopping-actions">
-      <button className={`btn btn-primary voice-mic${listening ? " is-recording" : ""}`} type="button" onClick={listening ? stop : record} disabled={busy && !listening}>
+      <button id={AGENTIC_VOICE_START_ID} className={`btn btn-primary voice-mic${listening ? " is-recording" : ""}`} type="button" onClick={listening ? stop : record} disabled={busy && !listening} data-voice-active={active ? "" : undefined}>
         {listening ? <StopIcon size={22} /> : <MicIcon size={24} />}
         {listening ? "Stop recording" : "Speak a shopping request"}
       </button>

@@ -84,6 +84,17 @@ def test_several_named_items_go_straight_to_the_cart():
     assert two_limits.assumptions == ["Coca-Cola: No price limit, since you did not name one."]
 
 
+def test_a_cheap_named_item_does_not_get_stuck_as_a_catalog_requirement():
+    cheap_yogurt = item("greek yogurt", 1)
+    cheap_yogurt["preferCheapest"] = True
+    cheap_yogurt["importantRequirements"] = ["very cheap"]
+
+    result = prepare(request([cheap_yogurt]))
+
+    assert result.status == "cart_ready"
+    assert [(line.product.id, line.quantity) for line in result.lines] == [("yogurt", 1)]
+
+
 def test_a_meal_is_checked_against_the_catalog_and_shown_before_adding():
     meal = {"goal": "tuna salad", "servings": 2, "cannotVerify": ["gluten-free"], "ingredients": [
         ingredient("tuna", "tuna", 2, "the main ingredient"),

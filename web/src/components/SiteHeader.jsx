@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { useCart } from "../lib/cart.jsx";
 import { BagIcon, MicIcon, WavesIcon } from "./Icons.jsx";
-import { focusVoiceShopping } from "./jump.js";
+import { startHeaderVoiceShopping } from "./jump.js";
 
 export default function SiteHeader({ onOpenCart }) {
   const { count } = useCart();
@@ -20,7 +20,7 @@ export default function SiteHeader({ onOpenCart }) {
         <div className="header-actions">
           {/* A button, not a link: it moves focus on this page and never navigates.
               Below 600px it is icon-only; the text stays as its accessible name. */}
-          <button type="button" className="header-voice" onClick={focusVoiceShopping}>
+          <button type="button" className="header-voice" onClick={startHeaderVoiceShopping}>
             <MicIcon size={20} /> <span className="header-voice-text">Shop by voice</span>
           </button>
           <button type="button" className="btn btn-primary cart-button" onClick={onOpenCart} aria-haspopup="dialog">

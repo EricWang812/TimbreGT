@@ -133,6 +133,10 @@ quantity.mode to fill_budget with value null and put the budget in maxPrice;
 otherwise quantity.mode is exact. Set maxPrice.per to each when the limit is for one
 item ("under $2 each", "no more than 3 dollars a can"), otherwise total. Set
 preferCheapest true when the speaker wants the cheapest or a cheap option.
+Affordability words such as cheap, cheapest, affordable, inexpensive, budget,
+or low-cost are price-ranking instructions. Do not also put those words in
+importantRequirements or optionalPreferences. A real product property stated
+beside them, such as organic in "cheap organic yogurt", remains a requirement.
 
 Use null with confidence missing when a field is absent, and never guess a missing
 value. Only the product is required. A missing quantity or maximum price is fine:

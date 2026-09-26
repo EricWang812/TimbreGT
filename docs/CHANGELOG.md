@@ -24,6 +24,22 @@ alternatives considered and why they were rejected.
 
 ---
 
+### 2026-09-26 16:15 - Make the header voice button start agentic shopping
+
+- **Files:** web/src/components/SiteHeader.jsx, web/src/components/jump.js, web/src/components/AgenticVoiceShopping.jsx, web/src/components/VoiceShopping.jsx, AGENTS.md.
+- **What:** Replaced the header button's focus-only action with a launcher that prioritizes the agentic microphone and clicks it after scrolling and focusing. Added stable agentic control ids, route waiting, and active-recorder guards. If the agentic panel is absent, the launcher starts the existing Whisper microphone. If an agentic service returns 503 after capture, a cancelable in-page handoff sends the same WAV to the existing `shoppingVoice` request and `VoiceShopping` confirmation UI.
+- **Why:** The header control appeared actionable but only moved focus, and an unavailable agentic provider otherwise forced the shopper to find the legacy panel and repeat the request.
+- **Verify:** `npm --prefix web run build` (66 modules); run the isolated Node launcher check for agentic priority, legacy DOM fallback, active-recorder guarding, and WAV handoff dispatch; `git diff --check`. In the browser, click the header button on the shop page and confirm the agentic button changes to Stop recording. With the agentic panel removed or unavailable, confirm the legacy panel starts or receives the captured WAV.
+- **Risk/Notes:** Automatic WAV fallback is limited to HTTP 503 service-unavailable responses. Validation errors remain visible in the agentic panel because replaying malformed or silent audio through Whisper would not help. No backend, dependency, issuer, authentication, checkout, payment, or cart behavior changed.
+
+### 2026-09-26 16:00 - Treat affordability language as price ranking
+
+- **Files:** api/commerce_agent.py, api/openai_intent.py, tests/test_commerce_agent.py, tests/test_agentic_basket.py, AGENTS.md.
+- **What:** Added a deterministic commerce guard that removes affordability language from hard catalog requirements and uses it to rank relevant matches by price. A requirement made only of price language is discarded; actual properties beside it remain enforced. The OpenAI extraction instructions now explicitly keep affordability language out of requirements and optional preferences. Added single-item and basket regressions, including the exact contradictory shape that caused `Very cheap yogurt.` to fail.
+- **Why:** OpenAI could emit both `preferCheapest: true` and `importantRequirements: ["cheap"]`, causing commerce to reject every product because catalog descriptions do not say cheap.
+- **Verify:** `.venv/bin/python -m pytest -q tests/test_commerce_agent.py tests/test_agentic_basket.py tests/test_agentic_intent.py tests/test_ambiguity_resolution.py tests/test_final_intent.py` (56 passed); `make test` (194 passed); `npm --prefix web run build`; live POST of `Very cheap yogurt.` through `/agentic-shopping/basket/intent`, `/clarifications`, and `/prepare` returns `cart_ready` with Chobani Greek Yogurt, Nonfat Plain; `git diff --check`.
+- **Risk/Notes:** This ranks the cheapest relevant catalog match; it does not invent a dollar ceiling. The existing No price limit assumption remains visible when the shopper does not state one. No dependency was added. The two existing SpeechBrain `torch.load` future warnings remain.
+
 ### 2026-09-26 15:30 - Agentic baskets: several items and meals in one request
 
 - **Files:** api/basket.py (new), api/openai_intent.py, api/agentic_shopping.py, api/ambiguity_resolution.py, api/config.py, web/src/components/AgenticVoiceShopping.jsx, web/src/lib/api.js, web/src/lib/shoppingRecorder.js, web/src/styles.css, tests/test_agentic_basket.py (new), tests/test_ambiguity_resolution.py, docs/DECISIONS.md, AGENTS.md.

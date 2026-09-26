@@ -17,6 +17,19 @@ from api.final_intent import FinalShoppingIntent, FinalizedShoppingRequest
 from api.llm import words
 
 
+# Price language describes how to rank matching products. It is not product
+# metadata, so a catalog item never has to contain words such as "cheap" in
+# its name. Keep this deterministic because model output can place the same
+# phrase in importantRequirements even when preferCheapest is already true.
+_PRICE_PHRASES = re.compile(
+    r"\b(?:budget[ -]?friendly|low[ -]?cost|lowest[ -]?price|best[ -]?price|"
+    r"least[ -]?expensive|most[ -]?affordable|cheap(?:est)?|affordable|"
+    r"inexpensive|economical|budget)\b",
+    re.IGNORECASE,
+)
+_PRICE_INTENSIFIERS = re.compile(r"\b(?:very|really|super|most|more)\b", re.IGNORECASE)
+
+
 class CommerceError(ValueError):
     """A finalized request cannot safely prepare a cart."""
 
@@ -91,6 +104,20 @@ def _searchable_words(product: CatalogProduct) -> set[str]:
     return words(f"{product.name} {product.category} {product.brand}")
 
 
+def _without_price_language(requirement: str) -> tuple[str | None, bool]:
+    """Return any real product requirement left after price language.
+
+    "very cheap" becomes no hard requirement. "cheap organic" still requires
+    organic. Phrases such as "low sodium" remain untouched.
+    """
+    stripped, count = _PRICE_PHRASES.subn(" ", requirement)
+    if count == 0:
+        return requirement, False
+    stripped = _PRICE_INTENSIFIERS.sub(" ", stripped)
+    stripped = " ".join(stripped.split())
+    return stripped or None, True
+
+
 def _coverage(requested: str, available: set[str]) -> float:
     """Share of the requested words the product explains. Two heard words
     that form one catalog word ("gold fish" for Goldfish) count as a match."""
@@ -151,7 +178,18 @@ def search_products(intent: FinalShoppingIntent, catalog: list[dict],
             sizes = ", ".join(sorted({p.size for p in candidates}))
             return [], f"No {intent.product} in size {intent.size}. This store has {sizes}."
         candidates = sized
+    requirements: list[str] = []
+    price_preference = intent.preferCheapest
     for requirement in intent.importantRequirements:
+        catalog_requirement, mentions_price = _without_price_language(requirement)
+        price_preference = price_preference or mentions_price
+        if catalog_requirement:
+            requirements.append(catalog_requirement)
+    price_preference = price_preference or any(
+        _without_price_language(preference)[1]
+        for preference in intent.optionalPreferences
+    )
+    for requirement in requirements:
         meeting = [p for p in candidates
                    if _matches_words(requirement, f"{p.name} {p.category} {p.brand} {p.size}")]
         if not meeting:
@@ -199,7 +237,7 @@ def search_products(intent: FinalShoppingIntent, catalog: list[dict],
         tier[product.id] = (-coverage[product.id], -(precision >= 0.5))
         matches.append(ProductMatch(product=product, score=score, quantity=units[product.id]))
 
-    if intent.preferCheapest:
+    if price_preference:
         matches.sort(key=lambda m: (*tier[m.product.id], m.product.price_cents, -m.score, m.product.id))
     else:
         matches.sort(key=lambda m: (-m.score, m.product.price_cents, m.product.id))

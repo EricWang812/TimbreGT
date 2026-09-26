@@ -116,6 +116,33 @@ def test_a_per_item_limit_checks_one_unit_and_cheapest_stays_relevant():
     assert [m.product.id for m in search_products(cheapest, catalog)[0]][:2] == ["jar2", "jar"]
 
 
+def test_price_language_ranks_by_price_instead_of_becoming_a_hard_requirement():
+    # Live regression: "Very cheap yogurt" set preferCheapest and also emitted
+    # importantRequirements=["cheap"], which rejected every catalog product.
+    cheap = final_intent(
+        product="yogurt", maxPrice=None, quantity=1,
+        preferCheapest=True, importantRequirements=["very cheap"],
+    )
+    matches, reason = search_products(cheap, CATALOG)
+    assert reason is None
+    assert [match.product.id for match in matches] == ["chobani", "fage"]
+
+    # The commerce guard still works if the model forgets preferCheapest, and
+    # it preserves actual properties stated alongside the price preference.
+    affordable_nonfat = final_intent(
+        product="yogurt", maxPrice=None, quantity=1,
+        preferCheapest=False, importantRequirements=["affordable", "nonfat"],
+    )
+    matches, reason = search_products(affordable_nonfat, CATALOG)
+    assert reason is None
+    assert [match.product.id for match in matches] == ["chobani"]
+
+    # "Low" by itself is not discarded: low sodium remains a real constraint.
+    assert "low sodium" in search_products(
+        final_intent(maxPrice=None, quantity=1, importantRequirements=["low sodium"]), CATALOG
+    )[1]
+
+
 def test_a_pack_size_can_be_matched_in_the_product_name():
     catalog = [{"id": "coke", "name": "Coca-Cola Mini Cans, 6 Pack", "brand": "Coca-Cola", "size": "45 fl oz",
                 "category": "drinks", "price_cents": 499, "image_url": "/c.jpg", "image_credit": "test"}]
