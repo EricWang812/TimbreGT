@@ -24,6 +24,16 @@ alternatives considered and why they were rejected.
 
 ---
 
+### 2026-09-26 04:10 - Pre-register the fusion confirmation on EasyCall
+
+- **Files:** docs/PREREGISTRATION.md (new).
+- **What:** Froze the hypothesis, configurations (ECAPA versus ECAPA + ResNet34), corpus (EasyCall, CC BY-NC 2.0), speaker split, text-dependent protocol, calibration, and a three-part adoption rule, before downloading or scoring any EasyCall audio.
+- **Why:** ADR 8's fusion lead came from post-hoc evaluation numbers; the recommended path is to confirm it on data it was not chosen on, and committing the rule first makes the test honest.
+- **Verify:** `git log -- docs/PREREGISTRATION.md` shows this commit precedes any EasyCall result.
+- **Risk/Notes:** UA-Speech mirrors on the Hub carry no license and the official corpus needs a UIUC agreement, so UA-Speech is not used.
+
+---
+
 ### 2026-09-26 03:40 - Candidate encoders and ECAPA fusion (ADR 8: not adopted; fusion is a lead)
 
 - **Files:** ml/candidate_encoders.py (new), scripts/warm_candidates.py (new), scripts/run_variants.py (`--suite models`, fusion, per-model timing), ml/variants.py (`FreeCentroid`), tests/test_variants.py (fbank front end), tests/test_guards.py (issuer never loads candidates), Makefile (`models`), .gitignore, docs/DECISIONS.md (ADR 8), docs/RESEARCH.md, AGENTS.md.
