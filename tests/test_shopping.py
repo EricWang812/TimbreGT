@@ -130,3 +130,35 @@ def test_nbest_keeps_distinct_wordings_only(monkeypatch):
     monkeypatch.setattr(faster_whisper.tokenizer, "Tokenizer", FakeTokenizer)
     monkeypatch.setattr(shopping.asr, "_model", lambda: model)
     assert shopping.asr.hypotheses(np.ones(16000, dtype=np.float32) * .1) == ["Doug.", "Dug", "Duck"]
+
+
+STORE = [
+    {"id": "bread", "name": "21 Whole Grains and Seeds Bread", "brand": "Dave's Killer Bread"},
+    {"id": "chobani", "name": "Greek Yogurt, Nonfat Plain", "brand": "Chobani"},
+    {"id": "fage", "name": "Total 0% Greek Yogurt", "brand": "Fage"},
+    {"id": "bananas", "name": "Organic Bananas", "brand": "Dole"},
+    {"id": "coffee", "name": "Espresso Ground Coffee", "brand": "Café Bustelo"},
+    {"id": "cabot", "name": "Seriously Sharp Cheddar", "brand": "Cabot Creamery"},
+    {"id": "puffs", "name": "Aged White Cheddar Puffs", "brand": "Pirate's Booty"},
+]
+
+
+@pytest.mark.parametrize("said, expected, confident", [
+    ("whole milk", None, False),            # one shared word ("whole") is not a match
+    ("chobani yogurt", "chobani", True),    # brand words count
+    ("yogurt please", None, False),         # two yogurts tie: resolved below, never guessed
+    ("a banana", "bananas", True),          # plural and filler words
+    ("cafe bustelo", "coffee", True),       # accents folded
+])
+def test_keyword_fallback_needs_most_of_what_was_said(said, expected, confident):
+    result = llm.keyword_match([said], STORE)
+    if said == "yogurt please":
+        assert result.product_id in {"chobani", "fage"} and result.confidence < 0.7
+        return
+    assert result.product_id == expected
+    assert (result.confidence >= 0.7) == confident
+
+
+def test_a_word_shared_by_several_products_is_never_confident():
+    result = llm.keyword_match(["cheddar"], STORE)
+    assert result.product_id in {"cabot", "puffs"} and result.confidence < 0.7

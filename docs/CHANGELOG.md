@@ -24,6 +24,16 @@ alternatives considered and why they were rejected.
 
 ---
 
+### 2026-09-26 05:30 - Keyword fallback no longer suggests from one shared word
+
+- **Files:** api/llm.py (`words`, `keyword_match`), api/config.py (`KEYWORD_MIN_QUERY_COVERAGE`, `FILLER_WORDS`), tests/test_shopping.py.
+- **What:** Found in a live check: typing "whole milk" (not in the catalog) suggested "21 Whole Grains and Seeds Bread", and "cheddar" was matched confidently to one of three cheddar products. Now a product must explain more than half of the query's content words (brand words count, fillers such as "please" do not, plurals and accents are folded), and any other product covering the query as fully makes the answer a yes/no repair rather than a confident pick.
+- **Why:** The fallback runs whenever no LLM key is set, which is the current state; a wrong confident suggestion is the failure this user already lives with.
+- **Verify:** `make test` (shopping tests cover "whole milk", brand, plural, accent, and the cheddar tie); live: `curl -X POST localhost:8000/shopping/text -d '{"text":"whole milk"}'` returns no product. Browser: typing "cheddar" asks "Did you mean ...?"; the bank widget's readback said "Pay $10.45 to seaside market with your Travel Mastercard ending 4 4 4 4." (headless Chromium, no console errors).
+- **Risk/Notes:** Stricter matching means a few more "I could not find one item" answers; the product buttons and typing remain.
+
+---
+
 ### 2026-09-26 05:00 - Spoken confirmation, split along the privacy boundary (§10.3)
 
 - **Files:** web/src/lib/speak.js (new), web/src/issuer/speak.js (new), web/src/components/VoiceShopping.jsx, web/src/issuer/ApprovalWidget.jsx, docs/ALGORITHM.md (§10.3 as built), docs/DEMO.md.

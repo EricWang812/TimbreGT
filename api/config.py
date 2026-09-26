@@ -14,6 +14,8 @@ MERCHANT_ID = "seaside-market"
 
 # --- Shopping intent (docs/ALGORITHM.md §10) ---
 INTENT_CONFIDENCE_MIN = 0.7
+KEYWORD_MIN_QUERY_COVERAGE = 0.5  # keyword fallback: a product must explain MORE than half the content words
+FILLER_WORDS = frozenset("a an the some please i id want would like to get buy add me my of and can you".split())
 ASR_MODEL_DIR = WHISPER_DIR
 ASR_BEAM_SIZE = 5
 ASR_NBEST = 3
