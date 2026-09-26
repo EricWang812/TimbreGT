@@ -44,6 +44,11 @@ def seed_catalog() -> int:
     if missing:
         raise FileNotFoundError(f"product photos missing in {IMAGE_DIR}: {missing}")
     with merchant_db.transaction() as conn:
+        # The JSON is the whole catalog: drop products it no longer lists, so a
+        # re-seed never shows a removed item with a missing photo. Orders keep
+        # their own copy of each line (items_json), so nothing else refers here.
+        ids = [p["id"] for p in products]
+        conn.execute(f"DELETE FROM products WHERE id NOT IN ({', '.join('?' for _ in ids)})", ids)
         conn.executemany(
             "INSERT OR REPLACE INTO products"
             " (id, name, brand, size, category, price_cents, image_url, image_credit)"

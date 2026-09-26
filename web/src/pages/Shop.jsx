@@ -1,17 +1,26 @@
 import { useEffect, useState } from "react";
 import VoiceShopping from "../components/VoiceShopping.jsx";
+import AgenticVoiceShopping from "../components/AgenticVoiceShopping.jsx";
 import PageHeading from "../components/PageHeading.jsx";
 import ProductCard, { SkeletonCard } from "../components/ProductCard.jsx";
 import { LockIcon, TruckIcon } from "../components/Icons.jsx";
 import { scrollAndFocus } from "../components/jump.js";
+import { getStoreInfo } from "../lib/api.js";
+import { formatCents } from "../lib/money.js";
 
-// Display sections, in order. Seafood leads: it is a seaside market. Small
-// catalog categories are merged so no section is a lone card in a wide row.
+// Display sections, in order. Seafood leads: it is a seaside market. The rest
+// follow a store walk: fresh first, then chilled, frozen, and shelf aisles.
 const SECTIONS = [
   ["sea", "From the sea", ["seafood"]],
-  ["fresh", "Fresh and dairy", ["produce", "bakery", "dairy"]],
+  ["produce", "Fruit and vegetables", ["produce"]],
+  ["bakery", "Bakery", ["bakery"]],
+  ["dairy", "Dairy and eggs", ["dairy"]],
+  ["meat", "Meat and deli", ["meat"]],
+  ["frozen", "Frozen", ["frozen"]],
+  ["breakfast", "Breakfast", ["breakfast"]],
+  ["pantry", "Pantry", ["pantry"]],
+  ["snacks", "Snacks", ["snacks"]],
   ["drinks", "Drinks", ["drinks"]],
-  ["pantry", "Pantry and snacks", ["pantry", "snacks"]],
 ];
 const SKELETON_CARDS = 8;
 // Grid entrance: each card starts a little after the one before, capped so the
@@ -35,11 +44,29 @@ function useGridEntrance(ready) {
   return entering;
 }
 
+// The delivery threshold comes from the merchant (GET /store), so the pill can
+// never disagree with checkout. If it cannot load, the pill is left out rather
+// than showing a number that might be wrong.
+function useFreeDeliveryMin() {
+  const [cents, setCents] = useState(null);
+  useEffect(() => {
+    let cancelled = false;
+    getStoreInfo().then(
+      (info) => {
+        if (!cancelled && Number.isInteger(info.free_shipping_min_cents)) setCents(info.free_shipping_min_cents);
+      },
+      (err) => console.error("store info unavailable; delivery pill hidden", err),
+    );
+    return () => { cancelled = true; };
+  }, []);
+  return cents;
+}
+
 function itemsText(n) {
   return n === 1 ? "1 item" : `${n} items`;
 }
 
-export default function Shop({ catalog }) {
+export default function Shop({ catalog, onOpenCart }) {
   const groups = SECTIONS
     .map(([key, label, categories]) => [key, label, catalog.products.filter((p) => categories.includes(p.category))])
     .filter(([, , items]) => items.length > 0);
@@ -50,10 +77,10 @@ export default function Shop({ catalog }) {
   const loading = catalog.status === "loading";
   const showVoice = !loading && catalog.products.length > 0;
   const entering = useGridEntrance(catalog.status === "ready");
+  const freeDeliveryMin = useFreeDeliveryMin();
 
-  // A plain href="#pantry" would be read as a route by the hash router.
-  function jumpTo(event, key) {
-    event.preventDefault();
+  // Buttons, not links: a chip moves focus on this page and never navigates.
+  function jumpTo(key) {
     scrollAndFocus(document.getElementById(`category-${key}`));
   }
 
@@ -65,13 +92,17 @@ export default function Shop({ catalog }) {
           <PageHeading>Shop the market</PageHeading>
           <p className="band-lead">Fresh from the coast. Add items by voice, with a tap, or with the keyboard.</p>
           <ul className="fact-pills">
-            <li><TruckIcon size={20} /> Free delivery on orders of $35 or more</li>
+            {freeDeliveryMin !== null && (
+              <li><TruckIcon size={20} /> Free delivery on orders of {formatCents(freeDeliveryMin).replace(/\.00$/, "")} or more</li>
+            )}
             <li><LockIcon size={20} /> Approve payment with your bank</li>
           </ul>
         </div>
         {showVoice && <VoiceShopping products={catalog.products} />}
         {loading && <div className="voice-shopping voice-placeholder" aria-hidden="true" />}
       </div>
+
+      {showVoice && <AgenticVoiceShopping onOpenCart={onOpenCart} />}
 
       {loading && (
         <div className="stack">
@@ -93,11 +124,11 @@ export default function Shop({ catalog }) {
           <ul className="aisle-chips">
             {groups.map(([key, label, items]) => (
               <li key={key}>
-                <a className="chip" href={`#category-${key}`} onClick={(e) => jumpTo(e, key)}>
+                <button type="button" className="chip" onClick={() => jumpTo(key)}>
                   {label}
                   <span className="chip-count" aria-hidden="true">{items.length}</span>
                   <span className="visually-hidden">, {itemsText(items.length)}</span>
-                </a>
+                </button>
               </li>
             ))}
           </ul>

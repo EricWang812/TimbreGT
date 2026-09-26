@@ -145,6 +145,32 @@ Style rule: do not use em dashes.
 
 ---
 
+## 5. High-value purchases fall back to the passkey alone
+
+- **Date:** 2026-09-26
+- **Status:** accepted
+- **Context:** At or above `STEP_UP_AMOUNT` ($50), a voice match still needs
+  the passkey (voice AND passkey). The open question was what happens when
+  both voice attempts fail on such a purchase: the passkey alone, or
+  something stricter.
+- **Decision:** Keep the existing behavior. After `MAX_VOICE_ATTEMPTS` (2)
+  failed voice attempts, any purchase, including one at or above
+  `STEP_UP_AMOUNT`, completes with the passkey alone. The session records
+  `method='passkey'`. No §7 parameter changes. Locked by
+  `test_step_up_purchase_falls_back_to_passkey_only_after_two_failures`.
+- **Alternatives rejected:** (a) Block the purchase after two failures:
+  violates §2.4 (never dead-end the user). (b) Require a second factor
+  beyond the passkey (a one-time code, a call to the bank): adds an
+  inaccessible step for the people this is for and is out of scope (§3.4).
+  (c) Refuse large purchases for anyone whose voice fails: penalizes
+  exactly the users whose speech varies day to day.
+- **Consequences:** A passkey alone can approve a large purchase after two
+  voice failures, so the passkey is the real security floor. Voice adds
+  assurance above that floor and never removes access. The merchant still
+  learns only `{verified, transaction_id}`.
+
+---
+
 ## 6. Speaker-disjoint evaluation cohorts and within-identity enrollment
 
 - **Date:** 2026-09-25
@@ -152,7 +178,7 @@ Style rule: do not use em dashes.
 - **Context:** Section 8.1 originally prohibited sharing speaker identities between enrollment and test, which makes genuine speaker verification trials impossible. Development and evaluation identities must be separate instead. The corpus has arbitrary utterances, not five repetitions of three personalized sounds.
 - **Decision:** Reserve one third of each group (at least one identity) for development, with a deterministic seed. Evaluate the remaining identities using five enrollment recordings and up to 40 distinct probes each, preferring a different recording session. Use fixed existing thresholds without corpus tuning. Compare in-sample versus leave-one-out spread on identical trials. Group impostor rates by the claimed identity, using every other evaluation identity as an impostor. Report cohort sizes, exclusions, low cohesion, and session fallbacks. Keep low-cohesion templates in this diagnostic experiment, explicitly separate from the live passkey policy.
 - **Alternatives rejected:** Disjoint enrollment/test identities cannot provide genuine trials. A random clip-level development/test split leaks identities. Claiming the corpus experiment validates the personalized sound challenge overstates the evidence. Choosing examples by scores cherry-picks results.
-- **Consequences:** Preliminary text-independent speaker-verification evidence only. No live thresholds, replay behavior, or fallback policy changes. EER sweeps personal-threshold score margins; FAR/FRR use the unchanged operating point. ADR 3 remains provisional for live enrollment. ADR 5 is reserved for the unresolved high-value passkey-only fallback decision.
+- **Consequences:** Preliminary text-independent speaker-verification evidence only. No live thresholds, replay behavior, or fallback policy changes. EER sweeps personal-threshold score margins; FAR/FRR use the unchanged operating point. ADR 3 remains provisional for live enrollment. ADR 5 records the high-value passkey-only fallback decision.
 
 ---
 
@@ -191,3 +217,25 @@ Style rule: do not use em dashes.
 - **What the same run showed about the live configuration:** with the product's own protocol (five takes of one repeated command, the rest as probes from other sessions) and the live policy, ECAPA reached EER 0.29% (control) and 2.43% (dysarthric); at a margin of 0.119, FAR 0.02% and 0.23% with FRR 4.40% and 7.95%. Against the tougher same-word attacker (exploratory, not pre-registered): dysarthric EER 2.84%, FAR 0.63%, FRR 7.30% at the live margin. The text-independent check on the same speakers gave 8.75% dysarthric EER, the same as TORGO, which supports designing enrollment around a repeated personal sound.
 - **Alternatives rejected:** Adopting fusion on its single passing sub-check (dysarthric EER). Re-running with other encoders or margins on EasyCall (the pre-registration forbids it).
 - **Consequences:** No live change. The numbers that may be quoted, always with these caveats: one corpus, Italian, 8 kHz audio upsampled, corpus impostors rather than trained imitators or synthetic voices, correlated trials, not a population claim, and the same-word figures are exploratory. The fusion code stays for reproducibility. UA-Speech (with a UIUC license) or real enrollments remain the next independent checks.
+
+---
+
+## 10. Agentic shopping asks only when a wrong guess changes what is bought
+
+- **Date:** 2026-09-26
+- **Status:** accepted (supersedes the Feature 3 policy that every supplied field is confirmed)
+- **Context:** A live spoken request took five separate confirmations before reaching the cart, including values heard clearly. For people with dysarthria every extra turn is costly, and the purchase is already protected downstream: nothing is bought until checkout, the issuer challenge, and payment.
+- **Decision:** Accept high-confidence values without asking. Require only the product. Default an unstated quantity to 1 and an unstated budget to no limit, and show both assumptions. Ask one Yes/No question for each medium or low value or model-flagged material ambiguity, at most one per field and per span of words. Propose a store brand for a heard word that sounds like one, never accept it without a Yes, and set the same words aside elsewhere. Ignore a store brand the speaker never said. Apply a resolved request straight to the cart, with Undo and cart review as the confirmation step.
+- **Alternatives rejected:** (a) Keep confirming every field: the failure being fixed. (b) One summary confirmation before adding to the cart: still an extra turn on every request, and the cart already is a reviewable summary that costs nothing to undo. (c) Let the model pick a catalog product ID directly: harder to verify, and the deterministic ranking keeps selection auditable and testable. (d) Auto-accept brand repairs: a wrong brand silently changes the product, so a mishearing is still asked about once.
+- **Consequences:** Most clear requests need zero questions (live: of 11 shopping transcripts, 8 needed no question and 3 needed one). Correctness of silent acceptance depends on the model's confidence labels, bounded by deterministic guards (inferred brands ignored, one question per span, catalog-only brand proposals). The merchant/issuer boundary and every checkout safeguard are unchanged.
+
+---
+
+## 11. Named items go straight to the cart; the agent's picks are reviewed first
+
+- **Date:** 2026-09-26
+- **Status:** accepted (extends ADR 10)
+- **Context:** A spoken basket can hold products the shopper named ("milk and eggs") and products the agent chose to satisfy a goal ("stuff for tuna salad"). ADR 10 applies named items directly, relying on the cart and Undo, because a wrong guess there is rare and cheap. For a goal, every product is the agent's guess.
+- **Decision:** Apply a basket of named items directly, with Undo. When any line was chosen by the agent (a meal ingredient, or an item whose words the shopper never said), return the priced list for review first, with Remove and Put back re-priced by the server and one Add to cart. Meal ingredients may only reference catalog ids the server can find; anything else is listed as not sold here. A basket budget is shared in spoken order, "as many as fit" items take what is left, and going over is shown, never silently trimmed.
+- **Alternatives rejected:** (a) Review every basket: adds a step to the common case of named items. (b) Apply meals directly with Undo: the shopper never saw the choices, so an unwanted item could reach checkout unnoticed. (c) Let the model pick products for named items too: the deterministic search stays auditable and testable. (d) Trim the basket automatically to fit a budget: silently drops something the shopper asked for.
+- **Consequences:** Clear lists need no extra step; meals need one. Meal quality depends on the model, bounded by the catalog check, the review list, and the budget check. The merchant/issuer boundary and checkout safeguards are unchanged.

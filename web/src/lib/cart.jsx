@@ -50,6 +50,22 @@ export function CartProvider({ children }) {
     });
   }, []);
 
+  // Apply a server-prepared cart in one state update. Validate every line
+  // first so malformed agent output can never partially change the cart.
+  const replaceLines = useCallback((lines) => {
+    if (!Array.isArray(lines)) throw new Error("The prepared cart was invalid. Your cart was not changed.");
+    const next = {};
+    for (const line of lines) {
+      const productId = line.product_id ?? line.productId;
+      const quantity = line.quantity;
+      if (typeof productId !== "string" || !Number.isInteger(quantity) || quantity < 1 || quantity > MAX_QUANTITY) {
+        throw new Error("The prepared cart was invalid. Your cart was not changed.");
+      }
+      next[productId] = quantity;
+    }
+    setItems(next);
+  }, []);
+
   const value = useMemo(() => {
     const lines = Object.entries(items).map(([productId, quantity]) => ({ productId, quantity }));
     return {
@@ -59,9 +75,10 @@ export function CartProvider({ children }) {
       add: (productId) => adjust(productId, 1),
       adjust,
       setQuantity,
+      replaceLines,
       clear: () => setItems({}),
     };
-  }, [items, setQuantity, adjust]);
+  }, [items, setQuantity, adjust, replaceLines]);
 
   return <CartContext.Provider value={value}>{children}</CartContext.Provider>;
 }

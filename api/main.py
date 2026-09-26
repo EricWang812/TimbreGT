@@ -7,6 +7,7 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
+from api.agentic_shopping import router as agentic_shopping_router
 from api.catalog import router as catalog_router
 from api.checkout import router as checkout_router
 from api.config import WEB_ORIGIN
@@ -24,6 +25,7 @@ app = FastAPI(title="Timbre merchant (Seaside Market)", lifespan=lifespan)
 app.include_router(catalog_router)
 app.include_router(checkout_router)
 app.include_router(shopping_router)
+app.include_router(agentic_shopping_router)
 
 app.add_middleware(
     CORSMiddleware,

@@ -169,6 +169,18 @@ def test_two_failures_fall_back_to_passkey(issuer, monkeypatch):
     assert issuer_db.fetch_one("SELECT method FROM sessions WHERE id = ?", (sid,))["method"] == "passkey"
 
 
+def test_step_up_purchase_falls_back_to_passkey_only_after_two_failures(issuer, monkeypatch):
+    # ADR 5: at or above STEP_UP_AMOUNT, two failed voice attempts end in the
+    # passkey alone, the same as any other purchase (never a dead end, §2.4).
+    monkeypatch.setattr(approvals.v, "score", lambda embedding, center: 0.0)
+    sid = _session(issuer, amount_cents=STEP_UP_AMOUNT)
+    first = _answer(issuer, sid, _identify(issuer, sid)["challenge"]).json()
+    second = _answer(issuer, sid, first["challenge"]).json()
+    assert second["result"] == "passkey_required" and second["reason"] == "attempts"
+    assert pay_with_passkey(issuer, sid, DEVICE["passkey"]).json() == {"result": "verified"}
+    assert issuer_db.fetch_one("SELECT method FROM sessions WHERE id = ?", (sid,))["method"] == "passkey"
+
+
 def test_replayed_enrollment_audio_fails(issuer):
     sid = _session(issuer)
     challenge = _identify(issuer, sid)["challenge"]

@@ -4,6 +4,7 @@
 export const TARGET_RATE = 16000;   // mirrors api/config.py SHOP_SAMPLE_RATE
 export const MIN_SECONDS = 0.3;     // enough audio for a short shopping word
 export const MAX_SECONDS = 10;      // mirrors api/config.py SHOP_AUDIO_MAX_SECONDS
+export const AGENTIC_MAX_SECONDS = 25;   // mirrors api/config.py AGENTIC_AUDIO_MAX_SECONDS
 
 // Browser voice processing reshapes the signal differently from one take to
 // the next, which makes the same person's recordings look less alike. Off.
@@ -18,7 +19,7 @@ export class MicrophoneError extends Error {}
 export class TooShortError extends Error {}
 const TOO_SHORT = `That was too short. Keep recording a little longer, at least ${MIN_SECONDS} seconds.`;
 
-export async function startRecording({ onLevel } = {}) {
+export async function startRecording({ onLevel, maxSeconds = MAX_SECONDS } = {}) {
   let stream;
   try {
     stream = await navigator.mediaDevices.getUserMedia(CONSTRAINTS);
@@ -90,7 +91,7 @@ export async function startRecording({ onLevel } = {}) {
       if (mono.length / TARGET_RATE < MIN_SECONDS) throw new TooShortError(TOO_SHORT);
       // The auto-stop timer fires a few milliseconds after the limit; trim so
       // the merchant's duration check never rejects a take that hit the limit.
-      mono = mono.subarray(0, MAX_SECONDS * TARGET_RATE);
+      mono = mono.subarray(0, maxSeconds * TARGET_RATE);
       return { wav: encodeWav(mono, TARGET_RATE), seconds: mono.length / TARGET_RATE };
     })();
     return result;

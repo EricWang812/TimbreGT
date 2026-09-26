@@ -374,6 +374,66 @@ main.route-enter h1 { font-size: 2.25rem; font-weight: 700; letter-spacing: -0.0
 }
 .voice-placeholder { min-height: 22rem; animation: skeleton-pulse 1.6s ease-in-out infinite; }
 
+/* --- Additive agentic shopping ------------------------------------------- */
+
+.agentic-shopping {
+  margin-bottom: var(--space-8);
+  padding: var(--space-6);
+  background: var(--surface);
+  border: 1px solid var(--divider);
+  border-radius: var(--radius-card);
+  box-shadow: var(--shadow-1);
+}
+.agentic-head { align-items: start; }
+.agentic-head > .note { max-width: 40rem; }
+.agentic-shopping .eyebrow {
+  margin-bottom: var(--space-1);
+  color: var(--ink);
+  font-size: 0.8125rem;
+  font-weight: 800;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+.agentic-block,
+.agentic-ready,
+.agentic-question {
+  display: grid;
+  gap: var(--space-3);
+  padding: var(--space-4);
+  background: var(--bg);
+  border: 1px solid var(--divider);
+  border-radius: var(--radius);
+}
+.agentic-question { min-width: 0; }
+.agentic-question legend { padding-inline: var(--space-2); font-size: 1.125rem; font-weight: 800; }
+.agentic-transcript { font-size: 1.0625rem; }
+.agentic-intent { display: grid; grid-template-columns: repeat(auto-fit, minmax(10rem, 1fr)); gap: var(--space-3); }
+.agentic-intent div { min-width: 0; }
+.agentic-intent dt { color: var(--text-muted); font-size: 0.875rem; font-weight: 700; }
+.agentic-intent dd { margin: 0; overflow-wrap: anywhere; }
+.agentic-ready { background: var(--tint); border-color: var(--ink); }
+.agentic-restart { justify-self: start; }
+.agentic-item-head { margin: 0; font-size: 1rem; font-weight: 800; }
+.agentic-lines { list-style: none; margin: 0; padding: 0; display: grid; gap: var(--space-2); }
+.agentic-line {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+  padding: var(--space-3);
+  background: var(--bg);
+  border: 1px solid var(--divider);
+  border-radius: var(--radius);
+}
+.agentic-line > div { min-width: 0; }
+.agentic-line-name { margin: 0; font-weight: 700; overflow-wrap: anywhere; }
+.agentic-line.is-skipped .agentic-line-name { text-decoration: line-through; }
+@media (max-width: 599px) {
+  .agentic-shopping { padding: 20px var(--space-4); }
+  .agentic-head { display: grid; }
+}
+
 /* --- Aisle chips ----------------------------------------------------------- */
 
 .aisle-nav { margin-bottom: var(--space-6); }
@@ -390,6 +450,7 @@ main.route-enter h1 { font-size: 2.25rem; font-weight: 700; letter-spacing: -0.0
   border-radius: var(--radius-pill);
   font: 700 1rem/1.2 var(--font-body);
   text-decoration: none;
+  cursor: pointer;
   transition: background-color var(--dur-fast) var(--ease-out), border-color var(--dur-fast) var(--ease-out);
 }
 .chip:hover { background: var(--tint); border-color: var(--ink); }   /* --ink on --tint 8.58:1 */
@@ -406,22 +467,10 @@ main.route-enter h1 { font-size: 2.25rem; font-weight: 700; letter-spacing: -0.0
   font-variant-numeric: tabular-nums;
 }
 .chip:hover .chip-count { background: var(--surface); }
-/* Sticky below the header only where there is room for both bars. The larger
-   scroll padding keeps focused items clear of both (WCAG 2.4.11). */
-@media (min-width: 900px) and (min-height: 720px) {
-  html:has(.aisle-nav) { scroll-padding-top: 8.5rem; }
-  .aisle-nav {
-    position: sticky;
-    top: var(--header-h);
-    z-index: 4;
-    padding-block: var(--space-2);
-    background: var(--bg);
-    /* Full-bleed bar with a 1px divider at its foot (same ink-overflow trick as the band). */
-    border-image-source: linear-gradient(to top, var(--divider) 1px, var(--bg) 1px);
-    border-image-slice: 0 fill;
-    border-image-outset: 0 100vw;
-  }
-}
+/* Not sticky: with ten aisles the chips wrap to two or three rows, and a bar
+   that tall under the header would hide focused headings (WCAG 2.4.11). The
+   header stays sticky; chips sit at the top of the catalog. */
+.aisle-nav { padding-block: var(--space-2); }
 
 /* --- Catalog ---------------------------------------------------------------- */
 
