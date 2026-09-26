@@ -162,3 +162,8 @@ def test_keyword_fallback_needs_most_of_what_was_said(said, expected, confident)
 def test_a_word_shared_by_several_products_is_never_confident():
     result = llm.keyword_match(["cheddar"], STORE)
     assert result.product_id in {"cabot", "puffs"} and result.confidence < 0.7
+
+
+def test_store_info_serves_the_free_delivery_threshold():
+    from api.config import FREE_SHIPPING_MIN_CENTS
+    assert TestClient(app).get("/store").json() == {"free_shipping_min_cents": FREE_SHIPPING_MIN_CENTS}

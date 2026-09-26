@@ -36,8 +36,21 @@ function useCatalog() {
   return { ...state, reload: load };
 }
 
+// WCAG 2.4.2: every view has its own title, announced when it changes.
+const TITLES = {
+  shop: "Seaside Market",
+  checkout: "Checkout, Seaside Market",
+  receipt: "Receipt, Seaside Market",
+  baseline: "Two ways to check a voice, Timbre demo",
+  dashboard: "Voice changes over time, Timbre demo",
+  "bank-enroll": "Set up voice approval, your bank (demo)",
+};
+
 function Shell() {
   const route = useRoute();
+  useEffect(() => {
+    document.title = TITLES[route.name] ?? TITLES.shop;
+  }, [route.name]);
   const catalog = useCatalog();
   const [cartOpen, setCartOpen] = useState(false);
 
@@ -71,7 +84,9 @@ function Shell() {
       </main>
       <footer className="site-footer">
         <p className="note">
-          Seaside Market is a demo storefront for Timbre. Product photos: Open Food Facts contributors, CC BY-SA 3.0.
+          Seaside Market is a demo storefront for Timbre. Prices are illustrative. Product photos:{" "}
+          <a href="https://world.openfoodfacts.org" target="_blank" rel="noopener noreferrer">Open Food Facts contributors (opens a new tab)</a>,{" "}
+          <a href="https://creativecommons.org/licenses/by-sa/3.0/" target="_blank" rel="noopener noreferrer">CC BY-SA 3.0 (opens a new tab)</a>.
         </p>
         <p className="note"><a href="#/bank/enroll">Set up voice approval at your bank (demo)</a></p>
         <p className="note"><a href="#/baseline">Why transcription is the wrong test (demo comparison)</a></p>

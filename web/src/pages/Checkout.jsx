@@ -3,6 +3,7 @@
 // learns only {verified, transaction_id} (§2.5).
 import { useEffect, useRef, useState } from "react";
 import PageHeading from "../components/PageHeading.jsx";
+import CheckoutSteps from "../components/CheckoutSteps.jsx";
 import ApprovalWidget from "../issuer/ApprovalWidget.jsx";
 import { completeCheckout, confirmCheckout, quoteCart } from "../lib/api.js";
 import { useAnnounce } from "../lib/announce.jsx";
@@ -10,7 +11,6 @@ import { useCart } from "../lib/cart.jsx";
 import { formatCents } from "../lib/money.js";
 import { navigate } from "../lib/router.js";
 
-const STEPS = ["Cart", "Checkout", "Receipt"];
 const WIDE_QUERY = "(min-width: 900px)";
 
 // Two layouts with different reading orders (items first on wide screens,
@@ -28,18 +28,6 @@ function useWide() {
   return wide;
 }
 
-function Steps({ current }) {
-  return (
-    <ol className="checkout-steps" aria-label="Checkout steps">
-      {STEPS.map((label, i) => (
-        <li key={label} aria-current={label === current ? "step" : undefined}>
-          <span className="checkout-step-num" aria-hidden="true">{i + 1}</span>
-          <span className="checkout-step-label">{label}</span>
-        </li>
-      ))}
-    </ol>
-  );
-}
 
 // Rows come from the server quote once it is ready (the prices that will be
 // charged); until then, from the cart itself, without prices.
@@ -175,7 +163,7 @@ export default function Checkout({ products = {} }) {
   return (
     <>
       <div className="checkout-intro">
-        <Steps current="Checkout" />
+        <CheckoutSteps current="Checkout" />
         <PageHeading>Checkout</PageHeading>
       </div>
       <div className="checkout-grid">

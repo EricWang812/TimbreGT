@@ -189,18 +189,30 @@ p { margin: 0; }
   padding: var(--space-2) var(--space-4);
 }
 .header-actions { display: flex; align-items: center; gap: var(--space-6); }
-.header-voice-link { display: none; }
-@media (min-width: 900px) {
-  .header-voice-link {
-    display: inline-flex;
-    align-items: center;
-    gap: var(--space-2);
-    min-height: var(--tap);
-    font-weight: 700;
-    color: var(--ink);            /* 9.72:1 on white */
-    text-decoration: none;
+.header-voice {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-2);
+  min-height: var(--tap);
+  min-width: var(--tap);
+  padding: 0 var(--space-3);
+  border: 2px solid var(--control-border);   /* 4.66:1 on white */
+  border-radius: var(--radius-pill);
+  background: var(--surface);
+  color: var(--ink);                          /* 9.72:1 on white */
+  font: 700 1rem/1 var(--font-body);
+  cursor: pointer;
+  transition: background-color var(--dur-fast) var(--ease-out);
+}
+.header-voice:hover { background: var(--tint); }
+@media (max-width: 599px) {
+  .header-actions { gap: var(--space-3); }
+  .header-voice { padding: 0; }
+  .header-voice-text {             /* icon-only, but still the button's name */
+    position: absolute; width: 1px; height: 1px; overflow: hidden;
+    clip-path: inset(50%); white-space: nowrap;
   }
-  .header-voice-link:hover { text-decoration: underline; text-decoration-thickness: 2px; }
 }
 /* padding-block keeps the badge inside a 44px button, so the header is exactly --header-h. */
 .cart-button { border-radius: var(--radius-pill); padding-block: var(--space-1); padding-inline: var(--space-4) var(--space-2); }
@@ -726,6 +738,21 @@ pre.mono {
   .brand { font-size: 1.125rem; }
   .cart-button { padding-inline: var(--space-3) var(--space-2); }
 }
+
+/* aria-disabled buttons stay focusable and explain themselves when pressed. */
+.btn[aria-disabled="true"] { opacity: 0.55; cursor: not-allowed; }
+.btn[aria-disabled="true"]:active { scale: none; }
+.voice-readaloud {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  min-height: var(--tap);
+  margin-top: var(--space-2);
+  font-size: 0.9375rem;
+  color: var(--text-muted);     /* 7.58:1 on white */
+  cursor: pointer;
+}
+.voice-readaloud input { width: 20px; height: 20px; accent-color: var(--primary); }
 
 /* WCAG 2.3.3: under reduced motion nothing moves or scales. Color and opacity
    changes are not motion, so fades stay. Never tie state to animationend or

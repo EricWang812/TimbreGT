@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import PageHeading from "../components/PageHeading.jsx";
+import CheckoutSteps from "../components/CheckoutSteps.jsx";
 import { CheckIcon } from "../components/Icons.jsx";
 import { getOrder } from "../lib/api.js";
 import { formatCents } from "../lib/money.js";
@@ -47,6 +48,7 @@ export default function Receipt({ instructionId, products = {} }) {
   const approved = order.status === "approved";
   return (
     <div className="receipt">
+      <CheckoutSteps current={approved ? "Receipt" : "Checkout"} />
       <div className="receipt-head">
         {approved && <ApprovedMark />}
         <PageHeading>{approved ? "Thank you!" : "Order pending"}</PageHeading>

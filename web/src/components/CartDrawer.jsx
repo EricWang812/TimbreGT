@@ -98,7 +98,14 @@ export default function CartDrawer({ open, onClose, products }) {
   };
 
   function change(productId, quantity, index) {
-    cart.setQuantity(productId, quantity);
+    if (quantity > MAX_QUANTITY) {
+      // aria-disabled keeps "+" focusable (same as the product cards), so explain.
+      announce(`Maximum quantity reached for ${nameOf(productId)}: ${MAX_QUANTITY}.`);
+      return;
+    }
+    const current = cart.quantityOf(productId);
+    if (quantity <= 0) cart.setQuantity(productId, 0);
+    else cart.adjust(productId, quantity - current);
     const total = cart.count - cart.quantityOf(productId) + Math.max(quantity, 0);
     announce(quantity <= 0
       ? `Removed ${nameOf(productId)}. ${itemCountText(total)}.`
@@ -185,10 +192,10 @@ export default function CartDrawer({ open, onClose, products }) {
                         </button>
                         {/* A plain span: the app-wide live region already
                             announces the change, and <output> would say it twice. */}
-                        <span className="drawer-qty" aria-label={`Quantity ${quantity}`}>{quantity}</span>
+                        <span className="drawer-qty">{quantity}<span className="visually-hidden"> in cart</span></span>
                         <button type="button" className="drawer-step-btn"
                           onClick={() => change(productId, quantity + 1, index)}
-                          disabled={quantity >= MAX_QUANTITY}
+                          aria-disabled={quantity >= MAX_QUANTITY || undefined}
                           aria-label={`Add one ${name}`}>
                           <PlusIcon size={20} />
                         </button>

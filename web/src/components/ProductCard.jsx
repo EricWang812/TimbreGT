@@ -65,7 +65,11 @@ export default function ProductCard({ product }) {
   }, [inCart]);
 
   function add() {
-    if (atLimit) return;
+    if (atLimit) {
+      // aria-disabled keeps the button focusable, so say why nothing happened.
+      announce(`Maximum quantity reached for ${label}: ${MAX_QUANTITY}.`);
+      return;
+    }
     if (inCart === 0) pendingFocus.current = "plus";
     cart.add(product.id);
     announce(inCart === 0
@@ -76,7 +80,7 @@ export default function ProductCard({ product }) {
   function removeOne() {
     const next = inCart - 1;
     if (next <= 0) pendingFocus.current = "add";
-    cart.setQuantity(product.id, next);
+    cart.adjust(product.id, -1);
     announce(next <= 0
       ? `Removed ${label}. ${itemCountText(cart.count - 1)}.`
       : `${label}: quantity ${next}. ${itemCountText(cart.count - 1)}.`);

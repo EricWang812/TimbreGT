@@ -13,20 +13,16 @@ export default function SiteHeader({ onOpenCart }) {
     setBadge({ count, bumps: count > badge.count ? badge.bumps + 1 : badge.bumps });
   }
 
-  // A plain href would be read as a route by the hash router.
-  function toVoice(event) {
-    event.preventDefault();
-    focusVoiceShopping();
-  }
-
   return (
     <header className="site-header">
       <div className="site-header-inner">
         <a className="brand" href="#/"><WavesIcon size={28} /> Seaside Market</a>
         <div className="header-actions">
-          <a className="header-voice-link" href="#/" onClick={toVoice}>
-            <MicIcon size={20} /> Shop by voice
-          </a>
+          {/* A button, not a link: it moves focus on this page and never navigates.
+              Below 600px it is icon-only; the text stays as its accessible name. */}
+          <button type="button" className="header-voice" onClick={focusVoiceShopping}>
+            <MicIcon size={20} /> <span className="header-voice-text">Shop by voice</span>
+          </button>
           <button type="button" className="btn btn-primary cart-button" onClick={onOpenCart} aria-haspopup="dialog">
             <BagIcon size={22} />
             Cart

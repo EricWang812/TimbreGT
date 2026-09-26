@@ -2,15 +2,26 @@ import { useEffect, useRef, useState } from "react";
 import { startRecording, MAX_SECONDS } from "../lib/shoppingRecorder.js";
 import { shoppingText, shoppingVoice } from "../lib/api.js";
 import { MAX_QUANTITY, useCart } from "../lib/cart.jsx";
-import { useAnnounce } from "../lib/announce.jsx";
 import { formatCents } from "../lib/money.js";
 import { canSpeak, speak, stopSpeaking } from "../lib/speak.js";
 import { MicIcon, StopIcon } from "./Icons.jsx";
 import { VOICE_START_ID, VOICE_TITLE_ID } from "./jump.js";
 
+// Remembered per browser. A screen reader already speaks the status line, so
+// people using one may want the app's own voice off (the two would overlap).
+const READ_ALOUD_KEY = "seaside-read-aloud";
+function loadReadAloud() {
+  try {
+    return localStorage.getItem(READ_ALOUD_KEY) !== "off";
+  } catch (err) {
+    console.warn("read-aloud preference unavailable", err);
+    return true;
+  }
+}
+
 export default function VoiceShopping({ products }) {
   const cart = useCart();
-  const announce = useAnnounce();
+  const [readAloud, setReadAloud] = useState(loadReadAloud);
   const [phase, setPhase] = useState("idle");
   const [text, setText] = useState("");
   const [message, setMessage] = useState("");
@@ -43,10 +54,12 @@ export default function VoiceShopping({ products }) {
       const product = products.find((p) => p.id === result.product_id);
       if (!product) setMessage("I could not find one item. Try its name, type below, or use the product buttons.");
       else {
-        const question = `${result.needs_repair ? "Did you mean" : "Add"} ${product.brand} ${product.name} for ${formatCents(product.price_cents)}?`;
+        const full = cart.quantityOf(product.id) >= MAX_QUANTITY;
+        const question = `${result.needs_repair ? "Did you mean" : "Add"} ${product.brand} ${product.name} for ${formatCents(product.price_cents)}?`
+          + (full ? ` You already have the maximum of ${MAX_QUANTITY}.` : "");
         setSuggestion(product);
         setMessage(question);
-        if (spoken) speak(question);
+        if (spoken && readAloud) speak(question);
       }
     } catch (err) {
       if (current === generation.current && err.name !== "AbortError") {
@@ -107,11 +120,28 @@ export default function VoiceShopping({ products }) {
   }
 
   function add() {
-    if (!suggestion || cart.quantityOf(suggestion.id) >= MAX_QUANTITY) return;
+    if (!suggestion) return;
+    if (cart.quantityOf(suggestion.id) >= MAX_QUANTITY) {
+      // aria-disabled keeps focus here, so say why nothing was added.
+      setMessage(`You already have the maximum of ${MAX_QUANTITY} ${suggestion.name}. Nothing was added.`);
+      return;
+    }
     cart.add(suggestion.id);
-    const message = `Added one ${suggestion.name} to your cart.`;
-    setMessage(message); announce(message); setSuggestion(null);
+    // One announcement: the status line below is this panel's live region.
+    setMessage(`Added one ${suggestion.name} to your cart.`);
+    setSuggestion(null);
     focusSpeak();
+  }
+
+  function toggleReadAloud(event) {
+    const on = event.target.checked;
+    setReadAloud(on);
+    if (!on) stopSpeaking();
+    try {
+      localStorage.setItem(READ_ALOUD_KEY, on ? "on" : "off");
+    } catch (err) {
+      console.warn("could not save the read-aloud preference", err);
+    }
   }
 
   // The answer buttons unmount after a choice; land keyboard focus on the next
@@ -158,11 +188,15 @@ export default function VoiceShopping({ products }) {
         </div>
       </div>
       <div className="voice-shopping-actions">
-        <button ref={answer} className="btn btn-primary" type="button" onClick={add} disabled={atMax}>Yes, add one</button>
+        <button ref={answer} className="btn btn-primary" type="button" onClick={add} aria-disabled={atMax || undefined}>Yes, add one</button>
         <button className="btn btn-secondary" type="button" onClick={() => { stopSpeaking(); setSuggestion(null); setMessage("Nothing added. Try another item or use the product buttons."); focusSpeak(); }}>No, try again</button>
         {canSpeak() && <button className="btn btn-secondary" type="button" onClick={() => speak(message)}>Say it again</button>}
       </div>
-      {atMax && <p>You already have the maximum quantity of this item.</p>}
+      {atMax && <p className="note">You already have the maximum quantity of this item.</p>}
     </div>}
+    {canSpeak() && <label className="voice-readaloud">
+      <input type="checkbox" checked={readAloud} onChange={toggleReadAloud} />
+      Read suggestions aloud after I speak
+    </label>}
   </section>;
 }

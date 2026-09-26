@@ -2,7 +2,7 @@
 
 ## Handoff (read first; updated 2026-09-25, moved from Claude Code to Codex)
 
-**First action:** read this file, then `docs/CHANGELOG.md` (newest first), `docs/DECISIONS.md` (ADR 1-4), and `docs/CONTEXT.md` §12. Read `docs/ALGORITHM.md` before touching `issuer/`, `ml/`, or payments. Then give the person running Codex a short summary: what is done, what is next, open decisions.
+**First action:** read this file, then `docs/CHANGELOG.md` (newest first), `docs/DECISIONS.md` (ADR 2-4), and `docs/CONTEXT.md` §12. Read `docs/ALGORITHM.md` before touching `issuer/`, `ml/`, or payments. Then give the person running Codex a short summary: what is done, what is next, open decisions.
 
 **Done (Phases 0-6, 96 tests pass via `make test` as of Phase 8):** three services (merchant :8000, issuer :8100, Vite web :5173); privacy boundary (merchant learns only `{verified, transaction_id}`, enforced by tests); accessible storefront + bank widget; ECAPA enrollment, interleaved (ADR 4), held-out spread thresholds (ADR 3); voice challenge 2-of-3 with replay check and 2-attempt fallback; real WebAuthn passkeys; Stripe test-mode payments. Stubs remaining: enrollment/passkey registration have no auth (demo sign-in); `visa_provider` not built.
 

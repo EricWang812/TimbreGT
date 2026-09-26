@@ -194,8 +194,9 @@ span.drawer-thumb { background: var(--skeleton); }
   cursor: pointer;
   transition: background-color var(--dur-fast) var(--ease-out);
 }
-.drawer-step-btn:hover:not(:disabled) { background: var(--tint); }
-.drawer-step-btn:disabled { cursor: not-allowed; opacity: 0.45; }
+.drawer-step-btn:hover:not(:disabled, [aria-disabled="true"]) { background: var(--tint); }
+.drawer-step-btn:disabled,
+.drawer-step-btn[aria-disabled="true"] { cursor: not-allowed; opacity: 0.45; }
 .drawer-qty {
   min-width: 2.5ch;
   text-align: center;
@@ -439,6 +440,9 @@ span.checkout-thumb { background: var(--skeleton); }
 
 .receipt-table { width: 100%; border-collapse: collapse; font-variant-numeric: tabular-nums; }
 .receipt-table th, .receipt-table td { padding: var(--space-2) 0; text-align: left; vertical-align: middle; }
+/* WCAG 1.4.10: long names wrap at 320px instead of pushing the amount off screen. */
+.receipt-table td { overflow-wrap: anywhere; }
+.receipt .checkout-steps { justify-content: center; margin-bottom: var(--space-4); }
 .receipt-table tfoot th { font-weight: 400; }
 .receipt-table tbody tr + tr { border-top: 1px solid var(--divider); }
 .receipt-table tfoot tr:first-child th, .receipt-table tfoot tr:first-child td { border-top: 1px solid var(--divider); padding-top: var(--space-3); }

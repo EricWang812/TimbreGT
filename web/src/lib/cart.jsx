@@ -38,17 +38,30 @@ export function CartProvider({ children }) {
     });
   }, []);
 
+  // Functional updates: two taps faster than a re-render both count
+  // (reading `items` from this render would lose one).
+  const adjust = useCallback((productId, delta) => {
+    setItems((prev) => {
+      const next = { ...prev };
+      const quantity = Math.min((prev[productId] ?? 0) + delta, MAX_QUANTITY);
+      if (quantity <= 0) delete next[productId];
+      else next[productId] = quantity;
+      return next;
+    });
+  }, []);
+
   const value = useMemo(() => {
     const lines = Object.entries(items).map(([productId, quantity]) => ({ productId, quantity }));
     return {
       lines,
       count: lines.reduce((sum, line) => sum + line.quantity, 0),
       quantityOf: (productId) => items[productId] ?? 0,
-      add: (productId) => setQuantity(productId, (items[productId] ?? 0) + 1),
+      add: (productId) => adjust(productId, 1),
+      adjust,
       setQuantity,
       clear: () => setItems({}),
     };
-  }, [items, setQuantity]);
+  }, [items, setQuantity, adjust]);
 
   return <CartContext.Provider value={value}>{children}</CartContext.Provider>;
 }
