@@ -4,6 +4,7 @@ import { shoppingText, shoppingVoice } from "../lib/api.js";
 import { MAX_QUANTITY, useCart } from "../lib/cart.jsx";
 import { useAnnounce } from "../lib/announce.jsx";
 import { formatCents } from "../lib/money.js";
+import { canSpeak, speak, stopSpeaking } from "../lib/speak.js";
 
 export default function VoiceShopping({ products }) {
   const cart = useCart();
@@ -24,10 +25,12 @@ export default function VoiceShopping({ products }) {
     clearTimeout(timer.current);
     controller.current?.abort();
     recording.current?.stop().catch((err) => console.warn("shopping recorder cleanup", err.name));
+    stopSpeaking();
   }, []);
   useEffect(() => { if (suggestion) answer.current?.focus(); }, [suggestion]);
 
-  async function interpret(send) {
+  // spoken: the request came by voice, so the answer is read aloud too.
+  async function interpret(send, spoken = false) {
     const current = generation.current;
     setPhase("thinking");
     setSuggestion(null);
@@ -38,8 +41,10 @@ export default function VoiceShopping({ products }) {
       const product = products.find((p) => p.id === result.product_id);
       if (!product) setMessage("I could not find one item. Try its name, type below, or use the product buttons.");
       else {
+        const question = `${result.needs_repair ? "Did you mean" : "Add"} ${product.brand} ${product.name} for ${formatCents(product.price_cents)}?`;
         setSuggestion(product);
-        setMessage(`${result.needs_repair ? "Did you mean" : "Add"} ${product.brand} ${product.name} for ${formatCents(product.price_cents)}?`);
+        setMessage(question);
+        if (spoken) speak(question);
       }
     } catch (err) {
       if (current === generation.current && err.name !== "AbortError") {
@@ -60,7 +65,7 @@ export default function VoiceShopping({ products }) {
     try {
       const { wav } = await take.stop();
       if (current !== generation.current) return;
-      await interpret((signal) => shoppingVoice(wav, signal));
+      await interpret((signal) => shoppingVoice(wav, signal), true);
     } catch (err) {
       if (current === generation.current) { setMessage(err.message); setPhase("idle"); busy.current = false; }
     }
@@ -69,6 +74,7 @@ export default function VoiceShopping({ products }) {
   async function record() {
     if (busy.current) return;
     busy.current = true;
+    stopSpeaking();   // never record the readback
     setMessage(""); setSuggestion(null); setPhase("starting");
     const current = generation.current;
     try {
@@ -121,7 +127,8 @@ export default function VoiceShopping({ products }) {
     <p role="status" aria-live="polite">{phase === "recording" ? "Recording. Say one item, then select Stop recording." : phase === "thinking" ? "Finding your item…" : message}</p>
     {suggestion && <div className="voice-shopping-actions">
       <button ref={answer} className="btn btn-primary" type="button" onClick={add} disabled={cart.quantityOf(suggestion.id) >= MAX_QUANTITY}>Yes, add one</button>
-      <button className="btn btn-secondary" type="button" onClick={() => { setSuggestion(null); setMessage("Nothing added. Try another item or use the product buttons."); }}>No, try again</button>
+      <button className="btn btn-secondary" type="button" onClick={() => { stopSpeaking(); setSuggestion(null); setMessage("Nothing added. Try another item or use the product buttons."); }}>No, try again</button>
+      {canSpeak() && <button className="btn btn-secondary" type="button" onClick={() => speak(message)}>Say it again</button>}
       {cart.quantityOf(suggestion.id) >= MAX_QUANTITY && <p>You already have the maximum quantity of this item.</p>}
     </div>}
   </section>;

@@ -24,6 +24,16 @@ alternatives considered and why they were rejected.
 
 ---
 
+### 2026-09-26 05:00 - Spoken confirmation, split along the privacy boundary (§10.3)
+
+- **Files:** web/src/lib/speak.js (new), web/src/issuer/speak.js (new), web/src/components/VoiceShopping.jsx, web/src/issuer/ApprovalWidget.jsx, docs/ALGORITHM.md (§10.3 as built), docs/DEMO.md.
+- **What:** After a spoken shopping request, the store reads its suggestion aloud ("Add ... for $4.99?") and offers "Say it again"; typed requests stay silent. The bank widget offers "Read this payment aloud": amount, store, and, once a card is chosen, its nickname and last four read digit by digit. Speech stops before either microphone opens and on close, so a readback is never recorded.
+- **Why:** Demo step 3 and §10.3. The issuer never sees items and the store never sees the card (ADR 2, §2.5), so each side reads what it already shows; a fixed template cannot misstate a number, which is what §10.3's no-arithmetic rule was protecting.
+- **Verify:** `npm --prefix web run build`; `make test` (guard tests keep each side's helper in its own folder). In a browser: speak an item on the Shop page and hear the suggestion; at checkout press "Read this payment aloud".
+- **Risk/Notes:** Uses the browser's speech synthesis (no network, no LLM); the button is hidden where it is unavailable. Deviation from §10.3's LLM-composed wording, recorded in ALGORITHM.md.
+
+---
+
 ### 2026-09-26 04:30 - Pre-registration amendment 1 (before scoring)
 
 - **Files:** docs/PREREGISTRATION.md.
