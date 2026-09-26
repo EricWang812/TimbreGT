@@ -108,3 +108,11 @@ def test_no_pan_in_source():
             if _luhn_valid(match.group()):
                 offenders.append(f"{path.relative_to(REPO_ROOT)}: {match.group()[-4:]}")
     assert offenders == []
+
+
+def test_issuer_never_loads_candidate_encoders():
+    # ADR 8: candidates are evaluation-only; the issuer's encoder is ml/encoder.py alone (§6).
+    probe = ("import sys, issuer.main; "
+             "print([m for m in ('ml.candidate_encoders', 'onnxruntime', 'ml.variants') if m in sys.modules])")
+    out = subprocess.run([sys.executable, "-c", probe], cwd=REPO_ROOT, capture_output=True, text=True, check=True)
+    assert out.stdout.strip() == "[]"

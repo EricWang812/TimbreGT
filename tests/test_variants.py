@@ -138,3 +138,10 @@ def test_compare_reference_and_decision_shape():
     assert result["reference"]["scorer"] == "centroid" and result["chosen"]["scorer"] == "top2"
     assert result["reference"]["development"]["frr"] <= result["target_development_frr"]
     assert set(result["checks"]) == {"lower_far_control", "lower_far_dysarthric", "dysarthric_frr_within_budget"}
+
+
+def test_wespeaker_front_end_shape_and_mean_normalization():
+    from ml.candidate_encoders import fbank
+    feats = fbank(tone(1.0))
+    assert feats.shape == (1, 98, 80)                     # 25 ms frames every 10 ms, 80 mel bins
+    assert np.allclose(feats.mean(axis=1), 0, atol=1e-4)  # per-utterance mean normalization

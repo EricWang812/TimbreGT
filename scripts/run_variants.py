@@ -1,8 +1,11 @@
-"""Compare accuracy candidates on the Phase 8 trials (docs/RESEARCH.md §4, ADR 7).
+"""Compare accuracy candidates on the Phase 8 trials (docs/RESEARCH.md §4, ADR 7 and 8).
+
+--suite cheap: preprocessing and scoring on ECAPA (ADR 7).
+--suite models: candidate encoders and ECAPA fusions (ADR 8; needs scripts.warm_candidates).
 
 Same corpus filter, quality check, seed, and trial selection as make eval.
 Embeddings are cached per preprocessing variant under data/variant_cache/, so
-a rerun only rescores. Writes docs/variants_results.{md,json} (gitignored).
+a rerun only rescores. Writes docs/{variants,models}_results.{md,json} (gitignored).
 """
 import argparse
 import hashlib
@@ -20,7 +23,7 @@ from issuer.config import EVAL_MAX_PROBES, EVAL_SEED, RECORDINGS_PER_LABEL, SAMP
 from ml.constants import ECAPA_DIR, REPO_ROOT, TORGO_SUBDIR
 from ml.evaluate import select_trials, split_speakers
 from ml.preprocess import crops, trim_silence
-from ml.variants import ASNorm, Centroid, MeanSub, TopK, compare, unit
+from ml.variants import ASNorm, Centroid, FreeCentroid, MeanSub, TopK, compare, unit
 from scripts.run_eval import load_candidates
 
 PREPROCESSORS = {
@@ -40,18 +43,30 @@ def cache_key(variant, names):
     return hashlib.sha256(blob.encode()).hexdigest()[:16]
 
 
-def embeddings_for(variant, waveforms, cache_dir):
+def ecapa_embedder(variant):
+    def run(waveform):
+        from ml.encoder import embed
+        return unit(np.mean([embed(p, SAMPLE_RATE) for p in PREPROCESSORS[variant](waveform)], axis=0))
+    return run
+
+
+def fuse(*tables):
+    """Equal-weight score fusion: cosine of concatenated unit vectors is the mean of the cosines."""
+    return {n: unit(np.concatenate([t[n] for t in tables])).astype(np.float32) for n in tables[0]}
+
+
+def embeddings_for(variant, waveforms, cache_dir, embedder=None):
     path = cache_dir / f"{variant.replace('+', '_')}-{cache_key(variant, waveforms)}.npz"
     if path.exists():
         data = np.load(path)
         return dict(zip(data["names"].tolist(), data["vectors"]))
-    from ml.encoder import embed
+    embedder = embedder or ecapa_embedder(variant)
     started, vectors = time.monotonic(), {}
     for i, (name, waveform) in enumerate(sorted(waveforms.items()), 1):
-        pieces = PREPROCESSORS[variant](waveform)
-        vectors[name] = unit(np.mean([embed(p, SAMPLE_RATE) for p in pieces], axis=0)).astype(np.float32)
+        vectors[name] = unit(embedder(waveform)).astype(np.float32)
         if i % 100 == 0 or i == len(waveforms):
             print(f"[{variant}] embedded {i}/{len(waveforms)} ({time.monotonic() - started:.1f}s)", flush=True)
+    print(f"[{variant}] {1000 * (time.monotonic() - started) / len(waveforms):.0f} ms per recording", flush=True)
     cache_dir.mkdir(parents=True, exist_ok=True)
     names = sorted(vectors)
     np.savez(path, names=np.array(names), vectors=np.stack([vectors[n] for n in names]))
@@ -62,9 +77,9 @@ def pct(x):
     return f"{x:.2%}"
 
 
-def report(result, counts):
+def report(result, counts, title="Accuracy candidates on TORGO (preliminary)"):
     ref, chosen = result["reference"], result["chosen"]
-    lines = ["# Accuracy candidates on TORGO (preliminary)", "",
+    lines = [f"# {title}", "",
              "Small corpus; development speakers choose, evaluation speakers are scored once. See docs/RESEARCH.md §4 and ADR 7.", "",
              f"Development target FRR (live policy on development speakers): {pct(result['target_development_frr'])}.",
              f"Reference: plain + centroid under the same calibration. Chosen by lowest development EER: **{chosen['embedding']} + {chosen['scorer']}**.",
@@ -96,6 +111,7 @@ def main():
     parser.add_argument("--data-dir", type=Path, default=REPO_ROOT / os.environ.get("DATA_DIR", "data") / TORGO_SUBDIR)
     parser.add_argument("--output-dir", type=Path, default=REPO_ROOT / "docs")
     parser.add_argument("--cache-dir", type=Path, default=REPO_ROOT / os.environ.get("DATA_DIR", "data") / "variant_cache")
+    parser.add_argument("--suite", choices=("cheap", "models"), default="cheap")
     args = parser.parse_args()
     try:
         by_speaker, counts, _ = load_candidates(args.data_dir)
@@ -121,11 +137,21 @@ def main():
                     source = io.BytesIO(audio["bytes"]) if audio.get("bytes") else args.data_dir / audio["path"]
                     waveforms[clip.name] = sf.read(source, dtype="float32")[0]
         print(f"{len(waveforms)} recordings; development {development}; evaluation {evaluation}", flush=True)
-        embeddings = {v: embeddings_for(v, waveforms, args.cache_dir) for v in PREPROCESSORS}
-        result = compare(SCORERS, embeddings, selections, groups, development, evaluation)
+        if args.suite == "cheap":
+            embeddings = {v: embeddings_for(v, waveforms, args.cache_dir) for v in PREPROCESSORS}
+            scorers, stem, title = SCORERS, "variants_results", "Accuracy candidates on TORGO (preliminary)"
+        else:
+            from ml.candidate_encoders import EMBEDDERS
+            embeddings = {"plain": embeddings_for("plain", waveforms, args.cache_dir)}
+            for name, embedder in EMBEDDERS.items():
+                embeddings[name] = embeddings_for(name, waveforms, args.cache_dir, embedder)
+            for name in EMBEDDERS:
+                embeddings[f"ecapa+{name}"] = fuse(embeddings["plain"], embeddings[name])
+            scorers, stem, title = [Centroid(), FreeCentroid()], "models_results", "Candidate encoders on TORGO (preliminary)"
+        result = compare(scorers, embeddings, selections, groups, development, evaluation)
         args.output_dir.mkdir(parents=True, exist_ok=True)
-        (args.output_dir / "variants_results.json").write_text(json.dumps(result, indent=2, default=float) + "\n", encoding="utf-8")
-        (args.output_dir / "variants_results.md").write_text(report(result, counts), encoding="utf-8")
+        (args.output_dir / f"{stem}.json").write_text(json.dumps(result, indent=2, default=float) + "\n", encoding="utf-8")
+        (args.output_dir / f"{stem}.md").write_text(report(result, counts, title), encoding="utf-8")
         chosen = result["chosen"]
         print(f"Chosen on development: {chosen['embedding']} + {chosen['scorer']}; adopt={result['adopt']} {result['checks']}", flush=True)
         for row in (result["reference"], chosen):

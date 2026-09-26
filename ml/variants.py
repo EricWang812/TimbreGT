@@ -28,6 +28,11 @@ class Centroid:
         return float(v @ template["center"])
 
 
+class FreeCentroid(Centroid):
+    """Centroid without the ECAPA-scale cosine floor, for encoders whose scores sit on another scale."""
+    name, floor = "centroid_free", None
+
+
 class TopK:
     """Mean of the best TOP_K_SAMPLES cosines to individual enrollment takes."""
     name, floor = f"top{TOP_K_SAMPLES}", GLOBAL_FLOOR

@@ -24,6 +24,16 @@ alternatives considered and why they were rejected.
 
 ---
 
+### 2026-09-26 03:40 - Candidate encoders and ECAPA fusion (ADR 8: not adopted; fusion is a lead)
+
+- **Files:** ml/candidate_encoders.py (new), scripts/warm_candidates.py (new), scripts/run_variants.py (`--suite models`, fusion, per-model timing), ml/variants.py (`FreeCentroid`), tests/test_variants.py (fbank front end), tests/test_guards.py (issuer never loads candidates), Makefile (`models`), .gitignore, docs/DECISIONS.md (ADR 8), docs/RESEARCH.md, AGENTS.md.
+- **What:** Compared WeSpeaker CAM++, ResNet221-LM, ResNet34-LM (ONNX) and SpeechBrain ResNet, alone and fused with ECAPA, under the ADR 7 protocol. The development pick (ResNet221) halved FAR but raised dysarthric FRR from 36.25% to 45.42%, so ECAPA stays alone live. Post hoc, 3 of 4 ECAPA fusions lowered EER for both groups; ECAPA + ResNet34 would have passed every check at 57 ms extra per take. Recorded as a lead needing independent data.
+- **Why:** Plan Phase 4, requested by the user.
+- **Verify:** `python -m scripts.warm_candidates` (about 220 MB into models/candidates/); `make models`; read `docs/models_results.md`. `make test` passes.
+- **Risk/Notes:** No new pip dependency: onnxruntime (already installed by faster-whisper) is used directly, so pin it in requirements.txt if a candidate is ever adopted. Candidates are evaluation-only and a guard test keeps them out of the issuer. SpeechBrain ResNet takes about 2.7 s per take and is disqualified for live use. ResNet34 is CC-BY-4.0 (attribution needed if adopted).
+
+---
+
 ### 2026-09-26 02:30 - Accuracy research and candidate comparison (ADR 7: none adopted)
 
 - **Files:** docs/RESEARCH.md (new), docs/DECISIONS.md (ADR 7), docs/CONTEXT.md (§11), ml/preprocess.py (new), ml/variants.py (new), scripts/run_variants.py (new), tests/test_variants.py (new), issuer/config.py (candidate constants), Makefile (`variants`), .gitignore, AGENTS.md.

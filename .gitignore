@@ -25,3 +25,5 @@ web/public/drift/
 web/public/drift.tmp/
 docs/variants_results.md
 docs/variants_results.json
+docs/models_results.md
+docs/models_results.json

@@ -87,6 +87,13 @@ None of the cheap candidates was adopted. On this corpus:
   for AS-norm and mean subtraction overlaps the development impostors, which
   flatters those methods (disclosed in ADR 7).
 
+**Candidate encoders (ADR 8, `make models`).** The development pick
+(ResNet221) halved false accepts but raised dysarthric false rejects 9 points,
+so nothing was adopted. Post hoc, fusing ECAPA with a second encoder lowered
+EER for both groups in three of four pairings (for example ECAPA + ResNet34:
+control 6.60% to 5.15%, dysarthric 8.75% to 5.67%). That is a lead to confirm
+on independent data, not a result we can claim.
+
 What would move the needle, in order: a larger development cohort from another
 corpus (so selection is trustworthy), then a stronger or second embedding model
 (plan Phase 4). Full table: `docs/variants_results.md` after `make variants`.

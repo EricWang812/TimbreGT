@@ -1,4 +1,4 @@
-.PHONY: dev api issuer web seed eval baseline drift variants reset test
+.PHONY: dev api issuer web seed eval baseline drift variants models reset test
 
 # Ports come from .env (§4.3). Only the port variables are used by make itself;
 # every service also loads .env on its own, so secrets never pass through make.
@@ -50,6 +50,10 @@ drift:
 # Accuracy candidates (docs/RESEARCH.md, ADR 7): development speakers choose, evaluation speakers score once.
 variants:
 	$(PY) -m scripts.run_variants
+
+# Candidate encoders and ECAPA fusions (ADR 8). Needs scripts.warm_candidates first.
+models:
+	$(PY) -m scripts.run_variants --suite models
 
 reset:
 	$(PY) -m scripts.reset_db
