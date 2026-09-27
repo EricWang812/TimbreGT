@@ -1,0 +1,236 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Timbre: payment approval that checks who is speaking</title>
+  <meta name="description" content="Timbre approves payments by recognizing who is speaking from the sound of their voice, not whether a machine understood the words, so adults with dysarthria are not locked out of voice-gated finance. A HackGT 13 project.">
+  <meta name="theme-color" content="#0e4f47">
+  <meta property="og:title" content="Timbre: payment approval that checks who is speaking">
+  <meta property="og:description" content="Voice approval built for adults with dysarthria: identity from acoustics, never from transcription. HackGT 13.">
+  <meta property="og:image" content="assets/icon-512.png">
+  <link rel="icon" href="favicon.ico" sizes="48x48">
+  <link rel="icon" type="image/svg+xml" href="favicon.svg">
+  <link rel="apple-touch-icon" href="apple-touch-icon.png">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Nunito+Sans:wght@400;600;700;800&family=Rubik:wght@600;700;800&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --bg: #faf8f4; --surface: #ffffff; --text: #0f172a; --muted: #475569;
+      --ink: #064e3b; --band: #0e4f47; --band-muted: #d7f0e6; --tint: #e6f4ee;
+      --gold: #f4c95d; --line: #d5d9d9; --focus: #0b2545;
+      --radius: 14px; --gutter: clamp(16px, 4vw, 40px);
+    }
+    * { box-sizing: border-box; }
+    html { scroll-behavior: smooth; }
+    @media (prefers-reduced-motion: reduce) { html { scroll-behavior: auto; } }
+    body { margin: 0; background: var(--bg); color: var(--text); font: 400 1.0625rem/1.6 "Nunito Sans", system-ui, sans-serif; }
+    h1, h2, h3 { font-family: Rubik, system-ui, sans-serif; color: var(--ink); line-height: 1.15; margin: 0 0 .5em; }
+    h2 { font-size: clamp(1.6rem, 3vw, 2.2rem); }
+    h3 { font-size: 1.2rem; }
+    p { margin: 0 0 1em; }
+    a { color: var(--ink); font-weight: 700; }
+    :focus-visible { outline: 3px solid var(--focus); outline-offset: 3px; border-radius: 4px; }
+    .skip { position: absolute; left: 8px; top: -60px; background: var(--surface); padding: 10px 14px; border-radius: 8px; z-index: 10; }
+    .skip:focus { top: 8px; }
+    .wrap { max-width: 72rem; margin: 0 auto; padding: 0 var(--gutter); }
+    section { padding: clamp(48px, 8vw, 96px) 0; }
+
+    /* Hero */
+    .hero { background: var(--band); color: #fff; padding: clamp(40px, 7vw, 88px) 0; }
+    .hero :focus-visible { outline-color: #fff; }
+    .hero-grid { display: grid; grid-template-columns: minmax(0, 1.1fr) minmax(0, 1fr); gap: clamp(24px, 5vw, 56px); align-items: center; }
+    .brand { display: flex; align-items: center; gap: 14px; margin-bottom: 22px; }
+    .brand img { width: 56px; height: 56px; border-radius: 14px; box-shadow: 0 0 0 2px rgb(255 255 255 / .25); }
+    .brand span { font: 800 1.5rem Rubik, sans-serif; letter-spacing: .01em; }
+    .hero h1 { color: #fff; font-size: clamp(2.1rem, 4.6vw, 3.5rem); }
+    .hero p.lede { font-size: clamp(1.1rem, 1.6vw, 1.3rem); color: var(--band-muted); max-width: 34rem; }
+    .tags { display: flex; flex-wrap: wrap; gap: 8px; margin: 22px 0 28px; padding: 0; list-style: none; }
+    .tags li { padding: 4px 12px; border: 1.5px solid rgb(255 255 255 / .45); border-radius: 999px; font-weight: 700; font-size: .9rem; }
+    .actions { display: flex; flex-wrap: wrap; gap: 12px; }
+    .btn { display: inline-flex; align-items: center; min-height: 48px; padding: 0 22px; border-radius: 999px; font-weight: 800; text-decoration: none; }
+    .btn-light { background: #fff; color: var(--band); }
+    .btn-ghost { color: #fff; border: 2px solid rgb(255 255 255 / .7); }
+    .btn-light:hover { background: var(--band-muted); }
+    .btn-ghost:hover { background: rgb(255 255 255 / .12); }
+    .hero figure { margin: 0; }
+    .shot { display: block; width: 100%; height: auto; border-radius: var(--radius); border: 1px solid var(--line); box-shadow: 0 18px 40px rgb(2 32 28 / .28); background: #fff; }
+    .hero figcaption { margin-top: 10px; font-size: .9rem; color: var(--band-muted); }
+
+    /* Problem */
+    .statement { font: 700 clamp(1.35rem, 2.6vw, 1.9rem)/1.35 Rubik, sans-serif; color: var(--ink); max-width: 46rem; }
+    .two { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: clamp(20px, 4vw, 48px); margin-top: 28px; }
+    .card { background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius); padding: clamp(20px, 3vw, 28px); }
+    .card p:last-child { margin-bottom: 0; }
+    .stat { font: 800 clamp(2rem, 4vw, 2.8rem) Rubik, sans-serif; color: var(--ink); margin: 0; }
+
+    /* Steps */
+    .steps { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 20px; margin-top: 28px; padding: 0; list-style: none; counter-reset: step; }
+    .steps li { counter-increment: step; }
+    .steps .card::before { content: counter(step); display: grid; place-items: center; width: 40px; height: 40px; margin-bottom: 14px; border-radius: 12px; background: var(--tint); color: var(--ink); font: 800 1.1rem Rubik, sans-serif; }
+    code { font: 600 .92em ui-monospace, "Cascadia Code", Consolas, monospace; background: var(--tint); color: var(--ink); padding: 1px 6px; border-radius: 6px; }
+
+    /* Gallery */
+    .alt { background: var(--surface); border-block: 1px solid var(--line); }
+    .gallery { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: clamp(20px, 3vw, 32px); margin-top: 32px; }
+    .gallery figure { margin: 0; }
+    .gallery a { display: block; border-radius: var(--radius); }
+    .gallery figcaption { margin-top: 12px; }
+    .gallery figcaption strong { display: block; font-family: Rubik, sans-serif; color: var(--ink); font-size: 1.05rem; }
+    .gallery figcaption span { color: var(--muted); font-size: .98rem; }
+
+    /* Numbers */
+    .table-wrap { overflow-x: auto; margin-top: 24px; border: 1px solid var(--line); border-radius: var(--radius); background: var(--surface); }
+    table { width: 100%; border-collapse: collapse; min-width: 640px; }
+    th, td { text-align: left; vertical-align: top; padding: 14px 16px; border-bottom: 1px solid var(--line); font-size: .98rem; }
+    thead th { background: var(--tint); color: var(--ink); font-family: Rubik, sans-serif; }
+    tbody tr:last-child td { border-bottom: 0; }
+    td:nth-child(2) { font-weight: 800; color: var(--ink); }
+    .note { color: var(--muted); font-size: .95rem; }
+    .callout { margin-top: 24px; border-left: 4px solid var(--gold); background: #fffaf0; padding: 16px 20px; border-radius: 0 var(--radius) var(--radius) 0; }
+
+    /* Built with */
+    .chips { display: flex; flex-wrap: wrap; gap: 10px; padding: 0; list-style: none; margin: 20px 0 0; }
+    .chips li { padding: 6px 14px; border-radius: 999px; background: var(--tint); color: var(--ink); font-weight: 700; font-size: .95rem; }
+
+    footer { background: var(--band); color: var(--band-muted); padding: 36px 0; font-size: .95rem; }
+    footer a { color: #fff; }
+    footer :focus-visible { outline-color: #fff; }
+
+    @media (max-width: 860px) {
+      .hero-grid, .two, .gallery { grid-template-columns: minmax(0, 1fr); }
+      .steps { grid-template-columns: minmax(0, 1fr); }
+    }
+  </style>
+</head>
+<body>
+  <a class="skip" href="#main">Skip to main content</a>
+
+  <header class="hero">
+    <div class="wrap hero-grid">
+      <div>
+        <div class="brand"><img src="assets/icon-512.png" alt="" width="56" height="56"><span>Timbre</span></div>
+        <h1>Payment approval that checks who is speaking, not whether a machine understood the words.</h1>
+        <p class="lede">Voice-gated banking asks to be understood, so it rejects adults with dysarthria. Timbre recognizes the person from the sound of their voice instead, and never transcribes it.</p>
+        <ul class="tags" aria-label="Project context">
+          <li>HackGT 13</li><li>Accessibility</li><li>Payments</li><li>Generative AI shopping</li>
+        </ul>
+        <div class="actions">
+          <a class="btn btn-light" href="#how">How it works</a>
+          <a class="btn btn-ghost" href="#numbers">Results and caveats</a>
+        </div>
+      </div>
+      <figure>
+        <img class="shot" src="assets/baseline.webp" width="1280" height="800" alt="The Baseline page comparing a transcription check with Timbre on the same TORGO recordings: for speakers with dysarthria the transcription check accepts the right person 45.2% of the time and Timbre 63.6%, while it accepts someone else 64.1% of the time against Timbre's 0.8%.">
+        <figcaption>Same recordings, two checks: transcription versus who is speaking.</figcaption>
+      </figure>
+    </div>
+  </header>
+
+  <main id="main">
+    <section aria-labelledby="problem">
+      <div class="wrap">
+        <h2 id="problem">The problem</h2>
+        <p class="statement">Identity lives in the acoustics of a voice. Intelligibility lives in articulation. Today's systems conflate the two and reject people for failing a test that was never necessary.</p>
+        <div class="two">
+          <div class="card">
+            <p class="stat">2.7 to 4 million</p>
+            <p>US adults live with dysarthria, a motor speech disorder after a stroke, or with Parkinson's disease, cerebral palsy, multiple sclerosis, or ALS. They understand language and think clearly; their articulation is impaired.</p>
+          </div>
+          <div class="card">
+            <h3>The workaround is handing over your card</h3>
+            <p>Phone menus, voice enrollment, and "say your card number" all require clear speech. When they fail, the fallback is asking a family member to call the bank, which means sharing card numbers and account access. That is the harm Timbre addresses.</p>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section class="alt" id="how" aria-labelledby="how-title">
+      <div class="wrap">
+        <h2 id="how-title">How it works</h2>
+        <p>Timbre is issuer infrastructure, like 3-D Secure, not a consumer app. Your bank turns it on and every store inherits it. The store in the demo is a test harness proving that integration takes two server-to-server calls and that the store learns nothing about you.</p>
+        <ol class="steps">
+          <li><div class="card"><h3>Enroll at your bank</h3><p>Choose three sounds you can repeat: a word, a hum, a held vowel. Record each five times, in alternating rounds, so the bank learns your natural variation, not one moment.</p></div></li>
+          <li><div class="card"><h3>Approve with your voice</h3><p>At checkout the bank asks for two of your sounds in random order and compares them against a threshold set from your own variability. Replayed recordings are rejected. Nothing in this path transcribes audio.</p></div></li>
+          <li><div class="card"><h3>The store learns one thing</h3><p>The merchant receives exactly <code>{verified, transaction_id}</code>: no score, no method, no attempt count. After two missed tries a passkey completes the purchase, so nobody hits a dead end.</p></div></li>
+        </ol>
+      </div>
+    </section>
+
+    <section aria-labelledby="tour">
+      <div class="wrap">
+        <h2 id="tour">A tour of the demo</h2>
+        <p>Screenshots from the working build. The demo runs locally; this page is a static showcase.</p>
+        <div class="gallery">
+          <figure>
+            <a href="assets/agentic.webp"><img class="shot" src="assets/agentic.webp" width="1280" height="800" loading="lazy" alt="The agentic shopping panel with a text field for a whole request, such as two cokes and as much yogurt as fits in ten dollars, and store sections below."></a>
+            <figcaption><strong>Shop with one sentence</strong><span>Say or type a whole request, like "what I need for tuna salad." OpenAI transcribes and structures it; the store asks only when unsure and fills the cart with Undo. This AI runs on the store side only, never in identity.</span></figcaption>
+          </figure>
+          <figure>
+            <a href="assets/checkout.webp"><img class="shot" src="assets/checkout.webp" width="1280" height="800" loading="lazy" alt="Checkout showing Wild Planet albacore tuna and Hellmann's mayonnaise, an order summary, and a choice between shipping to a saved address or pickup."></a>
+            <figcaption><strong>Checkout, then your bank</strong><span>The store prices the cart and hands off to the bank's widget, the way 3-D Secure does.</span></figcaption>
+          </figure>
+          <figure>
+            <a href="assets/receipt.webp"><img class="shot" src="assets/receipt.webp" width="1280" height="800" loading="lazy" alt="A receipt panel titled What Seaside Market learned from your bank, showing an approval response with only verified true and a transaction id."></a>
+            <figcaption><strong>The privacy boundary, on screen</strong><span>The entire approval the store received. A test fails the build if any other key appears.</span></figcaption>
+          </figure>
+          <figure>
+            <a href="assets/drift.webp"><img class="shot" src="assets/drift.webp" width="1280" height="800" loading="lazy" alt="A line chart of own takes accepted over later recording sessions, with an adaptive template rising toward 90 percent and a static template near 60 to 70 percent."></a>
+            <figcaption><strong>Voices change; the template follows</strong><span>Confident approvals nudge the template, with a clamp on how far one update can move it, for conditions that progress over time.</span></figcaption>
+          </figure>
+          <figure>
+            <a href="assets/orders.webp"><img class="shot" src="assets/orders.webp" width="1280" height="800" loading="lazy" alt="A buyer's order history with a full-width order card showing order date, total, ship to, a progress tracker, items with photos, and Buy it again buttons."></a>
+            <figcaption><strong>Buyer accounts and orders</strong><span>Signed-in buyers get order history with tracking, pickup or shipping, and Buy it again.</span></figcaption>
+          </figure>
+          <figure>
+            <a href="assets/seller.webp"><img class="shot" src="assets/seller.webp" width="1280" height="800" loading="lazy" alt="A seller's market overview with operations metrics and an order board with columns for Not Started, Fulfilling, Order Complete, Shipping, and Ready for Pickup."></a>
+            <figcaption><strong>A marketplace for sellers</strong><span>Sellers add products, set pickup and shipping, move orders through fulfillment, and read analytics and insights drawn only from their own orders.</span></figcaption>
+          </figure>
+        </div>
+      </div>
+    </section>
+
+    <section class="alt" id="numbers" aria-labelledby="numbers-title">
+      <div class="wrap">
+        <h2 id="numbers-title">Results, with their caveats</h2>
+        <p>Preliminary, small corpora, correlated trials. Not a benchmark, not a population claim, not a clinical result. All evidence is corpus audio: no disabled speech was imitated.</p>
+        <div class="table-wrap">
+          <table>
+            <caption class="note" style="text-align:left;padding:12px 16px">EER is equal error rate; FAR and FRR are false accept and false reject rates.</caption>
+            <thead><tr><th scope="col">What was measured</th><th scope="col">Result</th><th scope="col">Caveat</th></tr></thead>
+            <tbody>
+              <tr><td>Live design on an independent dysarthric corpus (repeated-sound protocol)</td><td>EER 2.43% dysarthric, 0.29% control</td><td>EasyCall, 30 speakers, Italian, 8 kHz upsampled, pre-registered; corpus impostors</td></tr>
+              <tr><td>Same design against a same-word attacker</td><td>EER 2.84% dysarthric</td><td>Exploratory, not pre-registered; no synthetic voices</td></tr>
+              <tr><td>Text-independent check on TORGO</td><td>EER 8.8% dysarthric, 6.7% control</td><td>11 evaluation speakers; different words per template</td></tr>
+              <tr><td>Transcription check versus Timbre on identical TORGO takes (dysarthric)</td><td>Right person 45% vs 64%; someone else 64% vs 0.8%</td><td>Mixed per speaker; one speaker does worse with Timbre</td></tr>
+              <tr><td>Adaptation over later TORGO sessions</td><td>Own takes 84% vs 66% static</td><td>Impostors 2.0% vs 1.5%; sessions days apart, not months</td></tr>
+            </tbody>
+          </table>
+        </div>
+        <div class="callout">
+          <p><strong>What is new here, and what is not.</strong> Dysarthric speaker verification is an existing research area, and text-independent voice biometrics are deployed at major banks. Timbre is a deployment, not a new algorithm: personal thresholds from a speaker's own variability, adaptation for progressive change, an issuer-side privacy split, and a passkey fallback, wired into a payment flow. As far as we could find, none of that had shipped.</p>
+          <p class="note" style="margin:0">We also pre-registered a test that failed, and published the negative result: the encoder fusion we liked was rejected.</p>
+        </div>
+      </div>
+    </section>
+
+    <section aria-labelledby="built">
+      <div class="wrap">
+        <h2 id="built">How we built it</h2>
+        <p>A store and a bank, each a FastAPI service with its own SQLite database, and a Vite plus React frontend. The speaker model is SpeechBrain ECAPA-TDNN, loaded once and kept warm. Payments go through a provider interface on Stripe test mode, with a Visa CyberSource sandbox provider; the bank stores a token reference and last four digits, never a card number.</p>
+        <ul class="chips" aria-label="Technologies">
+          <li>Python</li><li>FastAPI</li><li>SpeechBrain ECAPA-TDNN</li><li>PyTorch</li><li>OpenAI (gpt-4o-transcribe, gpt-4.1-mini)</li><li>faster-whisper</li><li>WebAuthn passkeys</li><li>Stripe test mode</li><li>Visa CyberSource sandbox</li><li>SQLite</li><li>React</li><li>Vite</li><li>Web Audio API</li>
+        </ul>
+        <p class="note" style="margin-top:24px">Data: TORGO (Rudzicz et al., 2012); EasyCall (Turrisi et al., 2021, CC BY-NC 2.0, non-commercial evaluation only). Product photos in the demo store: contributors to Open Food Facts, Open Beauty Facts, Open Pet Food Facts, and Open Products Facts (CC BY-SA 3.0).</p>
+      </div>
+    </section>
+  </main>
+
+  <footer>
+    <div class="wrap">
+      <p style="margin:0">Timbre, built at HackGT 13 (Georgia Tech, September 2026). This is a static project page; the working demo runs locally and handles no real cardholder data.</p>
+    </div>
+  </footer>
+</body>
+</html>
