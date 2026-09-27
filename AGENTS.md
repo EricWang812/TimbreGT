@@ -1242,11 +1242,18 @@ This is the authoritative checkpoint for the marketplace continuation. Preserve 
 - `git diff --check` passed at each checkpoint.
 - Browser verification loaded `#/market-dashboard` anonymously and showed the intended market-owner access state. No test market, order, or demo business data was created to populate the UI.
 
-### Remaining work, in order
+### Completed after this handoff (2026-09-26 18:33)
 
-1. **Feature 13, Market AI Insights.** This has not been implemented. Compute owner-scoped facts deterministically from persisted order, order-item, fulfillment-status, and analytics data first. If an OpenAI explanation is added, keep `OPENAI_API_KEY` server-side, set Responses API storage off, use strict structured output, and constrain the model to select or phrase supplied facts only. Do not permit invented numbers, deadlines, statuses, or elapsed times. The existing `api/openai_intent.py` demonstrates the repository's Responses API request shape and server-side key handling. Gracefully show an unavailable or no-insights state when no key or insufficient data exists.
-2. **Focused shared quality pass.** Check all added marketplace pages at desktop, tablet, and mobile widths; loading, empty, and error states; visible focus behavior; compact table overflow; and sidebar/header navigation. Do not add mock values to fill empty states.
-3. **Regression pass before handoff completion.** Run the combined focused suite, `npm --prefix web run build`, and `git diff --check`. Confirm storefront switching remains atomic, cart contents persist across switches, buyer dashboard/order details/Buy Again work, market data stays owner-scoped, status transitions remain backend-authorized, and no API key enters the client bundle.
+1. **Feature 13, Market AI Insights.** `api/market_insights.py`: owner-only `GET /markets/{marketId}/insights` returns deterministic facts from persisted orders, items, and status history, each gated by its own data threshold. Optional `POST /markets/{marketId}/insights/explanation` recomputes the facts and asks OpenAI (`store: false`, strict schema, `factId` limited to the supplied IDs) to reword them. The server discards wording with a number the chosen fact does not state, or deadline/lateness/profit words. No key: 503 "not configured". No facts: 409. UI at `#/market-insights/{marketId}`. Tests: `tests/test_market_insights.py`.
+2. **Account UI (was API-only).** `#/sign-in[/buyer|/owner]`, `#/account`, `#/addresses`, and first-market creation on the owner dashboard. The header menu refreshes through `web/src/lib/account.js`.
+3. **Quality pass.** Visible selected-chip state, `aria-current` owner nav, signed-out/missing/empty/error states with sign-in links, unmount-safe requests, 44px retries, and a phone header fix (no horizontal scroll at 320 to 768 px on any storefront, account, or owner route).
+4. **Regression.** Full suite 362 passed, frontend build 80 modules, Node order test, `git diff --check`, and no OpenAI key or endpoint in `web/dist`. Browser verification used a scratch DB. Details are in the 18:33 CHANGELOG entry.
+
+### Remaining work
+
+- Restart `make api`: the merchant that was running during this work predates Feature 11 and does not serve analytics, operations, or insights.
+- A live OpenAI round trip for the insights explanation (mocked in tests only).
+- Owner UI for products, branding, pickup, and shipping settings still uses the API only.
 
 ### Known limitations and deliberate boundaries
 
