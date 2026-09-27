@@ -299,14 +299,21 @@ def buyer_order_history(buyer: Buyer) -> dict:
         result = []
         for order in orders:
             items = conn.execute(
-                "SELECT product_name, price_cents, amount, quantity_value, quantity_unit "
+                "SELECT product_id, product_name, price_cents, amount, quantity_value, quantity_unit "
                 "FROM market_order_items WHERE order_id = ? ORDER BY id", (order["id"],)
             ).fetchall()
+            shipping = json.loads(order["shipping_address_json"]) if order["shipping_address_json"] else None
+            pickup = json.loads(order["pickup_address_json"]) if order["pickup_address_json"] else None
             result.append({
                 "id": order["id"], "market": {"id": order["market_id"], "name": order["market_name"]},
                 "items": [dict(item) for item in items], "totalCents": order["total_cents"],
                 "fulfillmentMethod": order["fulfillment_method"], "status": order["fulfillment_status"],
                 "createdAt": order["created_at"],
+                # A card summary of the buyer's own order (the full address stays on the details page).
+                "shipTo": {k: shipping[k] for k in ("recipientName", "city", "stateRegion")} if shipping else None,
+                "pickupAt": {k: pickup[k] for k in ("addressLine1", "city", "stateRegion")} if pickup else None,
+                "carrier": order["carrier"], "trackingNumber": order["tracking_number"],
+                "localDriver": bool(order["local_driver"]),
             })
     return {"orders": result}
 
@@ -321,7 +328,7 @@ def buyer_order_details(order_id: str, buyer: Buyer) -> dict:
         if order is None:
             raise HTTPException(status.HTTP_404_NOT_FOUND, "order not found")
         items = conn.execute(
-            "SELECT product_name, price_cents, amount, quantity_value, quantity_unit "
+            "SELECT product_id, product_name, price_cents, amount, quantity_value, quantity_unit "
             "FROM market_order_items WHERE order_id = ? ORDER BY id", (order_id,)
         ).fetchall()
     return {

@@ -17,6 +17,7 @@ from api.db import init_db
 from api.fulfillment_selection import router as fulfillment_selection_router
 from api.market_analytics import router as market_analytics_router
 from api.market_auth import router as market_auth_router
+from api.market_insights import router as market_insights_router
 from api.market_orders import owner_router as market_order_dashboard_router, router as market_orders_router
 from api.market_products import router as market_products_router
 from api.marketplace_catalog import router as marketplace_catalog_router
@@ -42,6 +43,7 @@ app.include_router(buyer_addresses_router)
 app.include_router(fulfillment_selection_router)
 app.include_router(market_orders_router)
 app.include_router(market_analytics_router)
+app.include_router(market_insights_router)
 app.include_router(market_order_dashboard_router)
 app.include_router(markets_router)
 app.include_router(market_products_router)

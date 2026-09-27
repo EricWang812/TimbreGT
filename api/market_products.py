@@ -19,6 +19,14 @@ from api.market_units import NormalizedUnit, ProductUnit, UnitDimension, normali
 
 router = APIRouter(prefix="/markets", tags=["market products"])
 
+
+def _optional_label(value: str | None) -> str | None:
+    """Brand and category are optional labels: trimmed, and blank means none."""
+    if value is None:
+        return None
+    return " ".join(value.split()) or None
+
+
 class CreateProduct(BaseModel):
     model_config = ConfigDict(extra="forbid")
     name: str = Field(min_length=1, max_length=160)
@@ -26,6 +34,20 @@ class CreateProduct(BaseModel):
     photoUrl: str | None = Field(default=None, max_length=2048)
     quantity: Decimal | None = Field(default=None, gt=0, max_digits=12, decimal_places=4)
     unit: ProductUnit | None = None
+    brand: str | None = Field(default=None, max_length=80)
+    # The storefront groups products into sections by category.
+    category: str | None = Field(default=None, max_length=60)
+
+    @field_validator("brand")
+    @classmethod
+    def normalized_brand(cls, value: str | None) -> str | None:
+        return _optional_label(value)
+
+    @field_validator("category")
+    @classmethod
+    def normalized_category(cls, value: str | None) -> str | None:
+        label = _optional_label(value)
+        return label.lower() if label else None  # "Dairy" joins the existing "dairy" section
 
     @field_validator("name")
     @classmethod
@@ -80,6 +102,8 @@ class Product(BaseModel):
     price: float
     priceCents: int
     photoUrl: str | None
+    brand: str | None = None
+    category: str | None = None
     quantity: float | None
     unit: ProductUnit | None
     quantityPerDollar: float | None
@@ -97,6 +121,19 @@ class UpdateProduct(BaseModel):
     photoUrl: str | None = Field(default=None, max_length=2048)
     quantity: Decimal | None = Field(default=None, gt=0, max_digits=12, decimal_places=4)
     unit: ProductUnit | None = None
+    brand: str | None = Field(default=None, max_length=80)
+    category: str | None = Field(default=None, max_length=60)
+
+    @field_validator("brand")
+    @classmethod
+    def normalized_optional_brand(cls, value: str | None) -> str | None:
+        return _optional_label(value)
+
+    @field_validator("category")
+    @classmethod
+    def normalized_optional_category(cls, value: str | None) -> str | None:
+        label = _optional_label(value)
+        return label.lower() if label else None
 
     @field_validator("name")
     @classmethod
@@ -132,6 +169,8 @@ def _product(row) -> Product:
         price=row["price_cents"] / 100,
         priceCents=row["price_cents"],
         photoUrl=row["photo_url"],
+        brand=row["brand"],
+        category=row["category"],
         quantity=row["quantity_value"],
         unit=row["quantity_unit"],
         **derived,
@@ -190,6 +229,8 @@ def create_product(market_id: str, body: CreateProduct, owner: MarketOwner) -> P
         price=float(body.price),
         priceCents=price_cents,
         photoUrl=body.photoUrl,
+        brand=body.brand,
+        category=body.category,
         quantity=quantity,
         unit=body.unit,
         **_derived_quantity_fields(quantity, body.unit, price_cents),
@@ -199,14 +240,16 @@ def create_product(market_id: str, body: CreateProduct, owner: MarketOwner) -> P
         _owned_market(conn, market_id, owner.id)
         conn.execute(
             "INSERT INTO market_products "
-            "(id, market_id, name, price_cents, photo_url, quantity_value, quantity_unit, created_at)"
-            " VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+            "(id, market_id, name, price_cents, photo_url, brand, category, quantity_value, quantity_unit, created_at)"
+            " VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
             (
                 product.id,
                 product.marketId,
                 product.name,
                 product.priceCents,
                 product.photoUrl,
+                product.brand,
+                product.category,
                 product.quantity,
                 product.unit,
                 product.createdAt,
@@ -261,6 +304,10 @@ def update_product(
         if "photoUrl" in supplied:
             assignments.append("photo_url = ?")
             values.append(body.photoUrl)
+        for field in ("brand", "category"):
+            if field in supplied:
+                assignments.append(f"{field} = ?")
+                values.append(getattr(body, field))
         if "quantity" in supplied:
             assignments.append("quantity_value = ?")
             values.append(float(body.quantity) if body.quantity is not None else None)

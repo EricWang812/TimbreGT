@@ -12,7 +12,9 @@ def storefront_markets() -> dict:
     rows = fetch_all(
         "SELECT m.id, m.name, m.description, m.primary_color, m.logo_url, COUNT(p.id) AS product_count "
         "FROM markets m LEFT JOIN market_products p ON p.market_id = m.id "
-        "GROUP BY m.id ORDER BY m.name"
+        # Best-stocked first: the default storefront is the fullest market, and an
+        # empty new market never becomes a buyer's landing page.
+        "GROUP BY m.id ORDER BY product_count DESC, m.name"
     )
     return {"markets": [{"id": row["id"], "name": row["name"], "description": row["description"],
                           "primaryColor": row["primary_color"], "logoUrl": row["logo_url"], "productCount": row["product_count"]} for row in rows]}
@@ -28,7 +30,7 @@ def storefront_products(market_id: str) -> dict:
     for row in rows:
         normalized = normalize_quantity(row["quantity_value"], row["quantity_unit"])
         products.append({"id": row["id"], "market": market_id, "marketName": market["name"], "name": row["name"], "brand": row["brand"] or "",
-                         "category": row["category"] or "Other", "size": f"{row['quantity_value']} {row['quantity_unit']}" if row["quantity_value"] else "",
+                         "category": row["category"] or "Other", "size": f"{row['quantity_value']:g} {row['quantity_unit']}" if row["quantity_value"] else "",  # "52 fl oz", never split across lines
                          "price_cents": row["price_cents"], "image_url": row["photo_url"], "image_credit": "",
                          "quantity": row["quantity_value"], "unit": row["quantity_unit"],
                          "normalizedQuantity": normalized.value if normalized else None,

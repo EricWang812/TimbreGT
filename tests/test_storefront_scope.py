@@ -30,3 +30,21 @@ def test_selected_market_scopes_both_shopping_paths_and_resets(monkeypatch):
         assert c.post("/shopping/text?marketId=missing", json={"text": "apple"}).status_code == 404
         assert c.get(f"/storefront/markets/{markets[2]}/products").json()["products"] == []
         assert markets[2] in [m["id"] for m in c.get("/storefront/markets").json()["markets"]]
+
+
+def test_real_catalog_rows_validate_for_commerce():
+    # Regression: list_catalog() added marketName, which CatalogProduct forbade,
+    # so every agentic basket failed with "Product search is unavailable".
+    # Uses the real persisted catalog query, not a stub.
+    from api.commerce_agent import CatalogProduct
+    from tests.test_market_orders import _market_product
+    with TestClient(app) as c:
+        market, product = _market_product(c)
+        c.post(f"/markets/{market['id']}/products", json={"name": "Cable", "price": 9.99})   # unmeasured, no photo
+        token = catalog.selected_market.set(market["id"])
+        try:
+            rows = catalog.list_catalog()
+        finally:
+            catalog.selected_market.reset(token)
+    assert {r["id"] for r in rows} >= {product["id"]} and len(rows) == 2
+    assert all(CatalogProduct.model_validate(r).marketName == "Order Market" for r in rows)

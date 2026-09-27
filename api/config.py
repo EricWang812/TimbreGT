@@ -33,6 +33,9 @@ LLM_MODELS = {"anthropic": "claude-haiku-4-5", "gemini": "gemini-2.5-flash-lite"
 OPENAI_TRANSCRIPTION_MODEL = "gpt-4o-transcribe"
 OPENAI_INTENT_MODEL = "gpt-4.1-mini"
 OPENAI_TIMEOUT_S = 20.0
+# Market owner insights (api/market_insights.py): the model only phrases facts
+# the server computed; it never supplies a number of its own.
+OPENAI_INSIGHTS_MODEL = "gpt-4.1-mini"
 # A heard word is proposed as a store brand (never accepted without a Yes)
 # when its spelling is at least this similar, or when it sounds the same.
 AGENTIC_BRAND_MATCH_RATIO = 0.8

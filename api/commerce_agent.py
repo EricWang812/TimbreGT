@@ -53,6 +53,7 @@ class CatalogProduct(BaseModel):
     image_url: str
     image_credit: str
     market: str = ""
+    marketName: str = ""   # list_catalog() carries the persisted market's name
 
 
 class ProductMatch(BaseModel):
