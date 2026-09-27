@@ -17,6 +17,7 @@ from a card number (non-negotiable §2.2).
 """
 import dataclasses
 import json
+import re
 import uuid
 from datetime import datetime, timezone
 
@@ -60,7 +61,27 @@ SEASIDE_PRODUCTS = [
     ("Café Bustelo", "Espresso Ground Coffee", 599, 10, "oz", "drinks", None),
     ("Simply Orange", "Pulp Free Orange Juice", 549, 52, "fl oz", "drinks", "simply-orange"),
     ("S.Pellegrino", "Sparkling Natural Mineral Water", 249, 750, "mL", "drinks", None),
+    # Tuna salad, with the albacore and bread above (prices and sizes from the legacy catalog).
+    ("Hellmann's", "Olive Oil Mayonnaise Dressing", 699, 30, "oz", "pantry", "hellmanns-olive-oil-mayo"),
+    ("Nature's Promise", "Organic Celery Hearts", 349, 1, "count", "produce", "natures-promise-celery-hearts"),
+    ("Publix", "Yellow Onions", 399, 3, "lb", "produce", "publix-yellow-onions"),
+    ("ReaLemon", "100% Lemon Juice", 349, 15, "fl oz", "pantry", "realemon-lemon-juice"),
+    ("Vlasic", "Sweet Relish", 299, 10, "fl oz", "pantry", None),
+    ("McCormick", "Pure Ground Black Pepper", 549, 3, "oz", "pantry", "mccormick-black-pepper"),
+    ("Morton", "Himalayan Pink Salt, Fine", 449, 17.6, "oz", "pantry", "morton-pink-salt"),
 ]
+
+# Seaside items with no legacy catalog row get their own Open Food Facts front
+# photo (same license and credit as the rest), saved by barcode in web/public/products.
+SEASIDE_PHOTOS = {
+    "Organic Bananas": "/products/0643126971962.jpg",
+    "Greek Yogurt, Nonfat Plain": "/products/0044843113.jpg",
+    "Extra Virgin Olive Oil": "/products/6191509900671.jpg",
+    "AppleApple Fruit Pouch": "/products/0890000001004.jpg",
+    "Espresso Ground Coffee": "/products/0074471290307.jpg",
+    "Sparkling Natural Mineral Water": "/products/8002270011023.jpg",
+    "Sweet Relish": "/products/0054100018700.jpg",
+}
 
 # "test_token" is a Stripe named test PaymentMethod (also understood by the
 # fake provider). With PAYMENT_PROVIDER=visa the card is instead the
@@ -119,7 +140,7 @@ def seed_seaside_marketplace() -> int:
         conn.execute("INSERT OR IGNORE INTO markets (id, name, owner_account_id, primary_color, description, created_at) VALUES (?, 'Seaside Grocer', ?, '#126B5B', 'Fresh from the coast, and the pantry behind it.', ?)",
                      (SEASIDE_MARKET_ID, SEASIDE_OWNER_ID, _now()))
         for brand, name, cents, quantity, unit, category, legacy_id in SEASIDE_PRODUCTS:
-            photo = None
+            photo = SEASIDE_PHOTOS.get(name)
             if legacy_id:
                 legacy = conn.execute("SELECT image_url FROM products WHERE id = ?", (legacy_id,)).fetchone()
                 photo = legacy["image_url"] if legacy else None
@@ -127,6 +148,71 @@ def seed_seaside_marketplace() -> int:
                          (str(uuid.uuid5(uuid.NAMESPACE_URL, f"timbre:seaside:{name}")), SEASIDE_MARKET_ID, name, brand, category, cents, photo, quantity, unit, _now()))
     return len(SEASIDE_PRODUCTS)
 
+
+# The other boardwalk shops, persisted like Seaside Grocer so the database-backed
+# storefront shows them. Their products come from the same catalog rows
+# (seed_catalog.json) they were sold from before the storefront moved to markets.
+BOARDWALK_MARKETS = [
+    ("tech", "00000000-0000-4000-8000-000000000003", "Seaside Tech", "#1D4E89",
+     "Headphones, speakers, and power for the boardwalk."),
+    ("sun", "00000000-0000-4000-8000-000000000004", "Sandbar Sun & Care", "#9A3412",
+     "Sunscreen, lip balm, and after-beach care."),
+    ("pets", "00000000-0000-4000-8000-000000000005", "Landlubber Pets", "#6B3A1F",
+     "For friends with four legs and no sea legs."),
+]
+_SIZE = re.compile(r"^(\d+(?:\.\d+)?)\s*(fl oz|oz|lb|g|kg|mL|L|gal)$")
+_COUNT = re.compile(r"^(\d+)\s+(pack|pair|charger|speaker|count)$")
+
+
+def _measure(size: str) -> tuple[float | None, str | None]:
+    """A catalog size as (quantity, unit), or (None, None) when it is not a supported unit."""
+    if match := _SIZE.match(size.strip()):
+        return float(match[1]), match[2]
+    if match := _COUNT.match(size.strip()):
+        return float(match[1]), "count"
+    return None, None
+
+
+def seed_boardwalk_markets() -> dict[str, int]:
+    products = json.loads(CATALOG_FILE.read_text("utf-8"))
+    counts = {}
+    with merchant_db.transaction() as conn:
+        for shop, market_id, name, color, description in BOARDWALK_MARKETS:
+            conn.execute("INSERT OR IGNORE INTO markets (id, name, owner_account_id, primary_color, description, created_at) VALUES (?, ?, ?, ?, ?, ?)",
+                         (market_id, name, SEASIDE_OWNER_ID, color, description, _now()))
+            stock = [p for p in products if p.get("market", DEFAULT_MARKET) == shop]
+            for p in stock:
+                quantity, unit = _measure(p["size"])
+                conn.execute("INSERT OR REPLACE INTO market_products (id, market_id, name, brand, category, price_cents, photo_url, quantity_value, quantity_unit, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+                             (str(uuid.uuid5(uuid.NAMESPACE_URL, f"timbre:{shop}:{p['id']}")), market_id, p["name"], p["brand"],
+                              p["category"], p["price_cents"], f"/products/{p['barcode']}.jpg", quantity, unit, _now()))
+            counts[name] = len(stock)
+    return counts
+
+
+
+# Demo fulfillment so a signed-in buyer can check out: every seeded market
+# offers pickup at the boardwalk and USPS/UPS shipping. Enabled only when the
+# settings are first added, so an owner who turns one off keeps it off.
+DEMO_PICKUP = ("1 Boardwalk Way", "Seaside Market pickup counter (demo)", "Tybee Island", "GA", "31328", "United States")
+DEMO_SHIPPING_METHODS = ("USPS", "UPS")
+
+
+def seed_demo_fulfillment() -> int:
+    market_ids = [SEASIDE_MARKET_ID] + [m[1] for m in BOARDWALK_MARKETS]
+    configured = 0
+    with merchant_db.transaction() as conn:
+        for market_id in market_ids:
+            added = conn.execute(
+                "INSERT OR IGNORE INTO market_pickup_addresses (market_id, address_line_1, address_line_2, city,"
+                " state_region, postal_code, country, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+                (market_id, *DEMO_PICKUP, _now())).rowcount
+            for method in DEMO_SHIPPING_METHODS:
+                conn.execute("INSERT OR IGNORE INTO market_shipping_methods (market_id, method) VALUES (?, ?)", (market_id, method))
+            if added:
+                conn.execute("UPDATE markets SET pickup_enabled = 1, shipping_enabled = 1 WHERE id = ?", (market_id,))
+                configured += 1
+    return configured
 
 def seed_cardholders() -> list[str]:
     provider = get_provider()
@@ -166,6 +252,9 @@ def main() -> None:
     issuer_db.init_db()
     print(f"catalog: {seed_catalog()} products")
     print(f"marketplace Seaside Grocer: {seed_seaside_marketplace()} products")
+    for name, count in seed_boardwalk_markets().items():
+        print(f"marketplace {name}: {count} products")
+    print(f"demo pickup and shipping: enabled for {seed_demo_fulfillment()} new markets")
     created = seed_cardholders()
     print("cardholders: " + (", ".join(created) if created else "already seeded"))
 
