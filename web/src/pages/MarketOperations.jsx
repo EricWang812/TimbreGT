@@ -9,8 +9,8 @@ export default function MarketOperations({ marketId, revision }) {
     getMarketOperations(marketId).then((data) => { if (active) setState({ status: "ready", data }); }, () => { if (active) setState({ status: "error" }); });
     return () => { active = false; };
   }, [marketId, revision, retry]);
-  if (state.status === "loading") return <p role="status">Loading operational metrics…</p>;
-  if (state.status === "error") return <p role="alert">Unable to load operational metrics. <button onClick={() => setRetry((n) => n + 1)}>Try again</button></p>;
+  if (state.status === "loading") return <p role="status" aria-busy="true">Loading operational metrics…</p>;
+  if (state.status === "error") return <p className="message-error" role="alert">Unable to load operational metrics. <button type="button" className="btn btn-secondary" onClick={() => setRetry((n) => n + 1)}>Try again</button></p>;
   const m = state.data;
   return <section><h3>Operations</h3><dl className="metric-grid">
     {[["Open preparation orders", m.openOrders], ["Fulfilling", m.fulfilling], ["Waiting to ship", m.waitingToShip], ["Ready for pickup", m.readyForPickup], ["Preparation completed", m.preparationCompleted], ["Average order value (all time)", m.averageOrderValueCents === null ? "Unavailable" : formatCents(m.averageOrderValueCents)]].map(([label, value]) => <div key={label}><dt>{label}</dt><dd>{value}</dd></div>)}

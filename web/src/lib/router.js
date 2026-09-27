@@ -5,7 +5,8 @@ import { useEffect, useState } from "react";
 let hasNavigated = false;
 
 function parse(hash) {
-  const path = hash.replace(/^#/, "") || "/";
+  const [rawPath, query = ""] = (hash.replace(/^#/, "") || "/").split("?");
+  const path = rawPath || "/";
   const receipt = path.match(/^\/receipt\/([0-9a-f-]{36})$/i);
   if (receipt) return { name: "receipt", instructionId: receipt[1] };
   const market = path.match(/^\/markets\/([0-9a-f-]{36})$/i);
@@ -17,6 +18,14 @@ function parse(hash) {
   if (path === "/baseline") return { name: "baseline" };
   if (path === "/dashboard") return { name: "dashboard" };
   if (path === "/buyer-dashboard") return { name: "buyer-dashboard" };
+  const signIn = path.match(/^\/sign-in(?:\/(buyer|owner))?$/);
+  if (signIn) return { name: "sign-in", role: signIn[1] ?? "buyer", next: new URLSearchParams(query).get("next") };
+  if (path === "/account") return { name: "account" };
+  if (path === "/addresses") return { name: "addresses" };
+  const sellerPage = path.match(/^\/market-(products|delivery)(?:\/([^/]+))?$/);
+  if (sellerPage) return { name: `market-${sellerPage[1]}`, marketId: sellerPage[2] };
+  const insights = path.match(/^\/market-insights(?:\/([^/]+))?$/);
+  if (insights) return { name: "market-insights", marketId: insights[1] };
   const analytics = path.match(/^\/market-analytics(?:\/([^/]+))?$/);
   if (analytics) return { name: "market-analytics", marketId: analytics[1] };
   const marketOrders = path.match(/^\/market-orders(?:\/([^/]+))?$/);

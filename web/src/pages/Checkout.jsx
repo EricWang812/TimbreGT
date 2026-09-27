@@ -5,6 +5,8 @@ import { useEffect, useRef, useState } from "react";
 import PageHeading from "../components/PageHeading.jsx";
 import CheckoutSteps from "../components/CheckoutSteps.jsx";
 import ApprovalWidget from "../issuer/ApprovalWidget.jsx";
+import DeliveryChoice from "../components/DeliveryChoice.jsx";
+import { signInHref, useAccountSessions } from "../lib/account.js";
 import { completeCheckout, confirmCheckout, quoteCart } from "../lib/api.js";
 import { useAnnounce } from "../lib/announce.jsx";
 import { useCart } from "../lib/cart.jsx";
@@ -89,6 +91,13 @@ export default function Checkout({ products = {} }) {
   const [step, setStep] = useState("ready");          // ready | starting | awaiting-bank | completing | not-approved | error
   const cartKey = JSON.stringify(cart.lines);         // re-quote when the cart's contents change, not its identity
   const approveRef = useRef(null);
+  const sessions = useAccountSessions();
+  const [fulfillment, setFulfillment] = useState(null);
+  // Market products carry their market; a legacy catalog line has none.
+  const marketIds = [...new Set(cart.lines.map((l) => products[l.productId]?.market).filter(Boolean))].sort();
+  const marketNames = Object.fromEntries(cart.lines.map((l) => products[l.productId]).filter((p) => p?.market).map((p) => [p.market, p.marketName]));
+  const needsDelivery = Boolean(sessions.buyer) && marketIds.length > 0;
+  const pickupQuote = needsDelivery && fulfillment?.method === "PICKUP";   // the quote drops shipping for pickup
 
   // The dialog cannot return focus to the Approve button (it was disabled
   // while the bank widget was open), so put it back explicitly for a retry.
@@ -100,7 +109,7 @@ export default function Checkout({ products = {} }) {
     if (cart.lines.length === 0) return;
     let cancelled = false;
     setQuote({ status: "loading" });
-    quoteCart(cart.lines).then(
+    quoteCart(cart.lines, pickupQuote ? "PICKUP" : undefined).then(
       (q) => !cancelled && setQuote({ status: "ready", ...q }),
       (err) => {
         console.error("quote failed", err);
@@ -110,14 +119,14 @@ export default function Checkout({ products = {} }) {
     return () => {
       cancelled = true;
     };
-  }, [cartKey]);
+  }, [cartKey, pickupQuote]);
 
   async function startApproval() {
     // Every attempt opens a fresh order and bank session, so an expired or
     // abandoned one can never trap the shopper (non-negotiable §2.4).
     setStep("starting");
     try {
-      const order = await confirmCheckout(cart.lines);
+      const order = await confirmCheckout(cart.lines, needsDelivery ? fulfillment : undefined);
       setAttempt({ instructionId: order.instruction_id, sessionId: order.session_id });
       setStep("awaiting-bank");
     } catch (err) {
@@ -181,6 +190,9 @@ export default function Checkout({ products = {} }) {
           {quote.status === "loading" && <p aria-busy="true">Pricing your cart…</p>}
           {quote.status === "error" && <p className="message-error" role="alert">Prices could not load. Reload the page to try again.</p>}
           {quote.status === "ready" && <Totals quote={quote} />}
+          {needsDelivery && <DeliveryChoice marketIds={marketIds} marketNames={marketNames} onChange={setFulfillment} />}
+          {sessions.status === "ready" && !sessions.buyer && <p className="note">Checking out as a guest. <a href={signInHref("buyer", "/checkout")}>Sign in as a buyer</a> to keep this order in your order history.</p>}
+          {sessions.status === "ready" && sessions.buyer && <p className="note">Signed in as {sessions.buyer.email}. This order will appear in your orders.</p>}
           <p className="checkout-privacy">
             Your bank confirms it is you. Seaside Market only learns whether the payment went through.
           </p>
@@ -191,7 +203,7 @@ export default function Checkout({ products = {} }) {
             <p className="message-error">Something went wrong reaching the payment service. Please try again.</p>
           )}
           <button type="button" ref={approveRef} className="btn btn-primary btn-block checkout-cta"
-            onClick={startApproval} disabled={quote.status !== "ready" || busy}>
+            onClick={startApproval} disabled={quote.status !== "ready" || busy || sessions.status === "loading" || (needsDelivery && !fulfillment)}>
             {busy ? "Waiting for your bank…" : quote.status === "ready"
               ? `Approve purchase, ${formatCents(quote.total_cents)}` : "Approve purchase"}
           </button>

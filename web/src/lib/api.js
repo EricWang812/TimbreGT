@@ -36,8 +36,11 @@ export const getStoreInfo = () => request("/store");
 export const getMarketBranding = (marketId) => request(`/markets/${encodeURIComponent(marketId)}`);
 export const getStorefrontMarkets = () => request("/storefront/markets");
 export const getStorefrontProducts = (marketId) => request(`/storefront/markets/${encodeURIComponent(marketId)}/products`);
-export const quoteCart = (lines) => request("/cart/quote", { method: "POST", body: { items: toItems(lines) } });
-export const confirmCheckout = (lines) => request("/checkout/confirm", { method: "POST", body: { items: toItems(lines) } });
+export const quoteCart = (lines, fulfillmentMethod) => request("/cart/quote", { method: "POST", body: fulfillmentMethod ? { items: toItems(lines), fulfillmentMethod } : { items: toItems(lines) } });
+// A signed-in buyer's fulfillment ({method, shippingAddressId}) makes the purchase
+// part of their order history; guests send none.
+export const confirmCheckout = (lines, fulfillment) => request("/checkout/confirm", { method: "POST", body: fulfillment ? { items: toItems(lines), fulfillment } : { items: toItems(lines) } });
+export const getFulfillmentOptions = (marketId) => request(`/buyer/markets/${encodeURIComponent(marketId)}/fulfillment-options`);
 // Returns exactly {verified, transaction_id}: all the merchant ever learns (§2.5).
 export const completeCheckout = (instructionId) =>
   request("/checkout/complete", { method: "POST", body: { instruction_id: instructionId } });
@@ -120,3 +123,26 @@ export const updateMarketOrderStatus = (marketId, orderId, status) => request(`/
 export const getMarketAnalytics = (marketId, period) => request(`/markets/${encodeURIComponent(marketId)}/analytics?period=${encodeURIComponent(period)}`);
 
 export const getMarketOperations = (marketId) => request(`/markets/${encodeURIComponent(marketId)}/operations`);
+
+export const getMarketInsights = (marketId) => request(`/markets/${encodeURIComponent(marketId)}/insights`);
+export const explainMarketInsights = (marketId) => request(`/markets/${encodeURIComponent(marketId)}/insights/explanation`, { method: "POST" });
+
+// Account sessions are HttpOnly cookies set by the merchant; the browser never sees a token.
+export const loginBuyer = (email, password) => request("/buyer-auth/login", { method: "POST", body: { email, password } });
+export const registerBuyer = (email, password) => request("/buyer-auth/register", { method: "POST", body: { email, password } });
+export const loginMarketOwner = (email, password) => request("/market-auth/login", { method: "POST", body: { email, password } });
+export const registerMarketOwner = (email, password) => request("/market-auth/register", { method: "POST", body: { email, password } });
+export const getBuyerAddresses = () => request("/buyer/addresses");
+export const createBuyerAddress = (address) => request("/buyer/addresses", { method: "POST", body: address });
+export const createMarket = (name) => request("/markets", { method: "POST", body: { name } });
+
+// Seller product management (owner session). Prices are dollars; the server stores cents.
+const productsPath = (marketId) => `/markets/${encodeURIComponent(marketId)}/products`;
+export const getMarketProducts = (marketId) => request(productsPath(marketId));
+export const createMarketProduct = (marketId, product) => request(productsPath(marketId), { method: "POST", body: product });
+export const updateMarketProduct = (marketId, productId, changes) => request(`${productsPath(marketId)}/${encodeURIComponent(productId)}`, { method: "PATCH", body: changes });
+export const deleteMarketProduct = (marketId, productId) => request(`${productsPath(marketId)}/${encodeURIComponent(productId)}`, { method: "DELETE" });
+export const getPickupSettings = (marketId) => request(`/markets/${encodeURIComponent(marketId)}/pickup-settings`);
+export const updatePickupSettings = (marketId, changes) => request(`/markets/${encodeURIComponent(marketId)}/pickup-settings`, { method: "PATCH", body: changes });
+export const getShippingSettings = (marketId) => request(`/markets/${encodeURIComponent(marketId)}/shipping-settings`);
+export const updateShippingSettings = (marketId, changes) => request(`/markets/${encodeURIComponent(marketId)}/shipping-settings`, { method: "PATCH", body: changes });

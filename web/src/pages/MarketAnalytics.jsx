@@ -12,10 +12,10 @@ export default function MarketAnalytics({ marketId }) {
   }, [marketId, period, retry]);
   const data = state.data;
   return <section className="stack">
-    <div className="management-actions" aria-label="Analytics period">{["7D", "30D", "1Y"].map((p) => <button className="chip" key={p} aria-pressed={p === period} onClick={() => setPeriod(p)}>{p}</button>)}</div>
+    <div className="management-actions" role="group" aria-label="Analytics period">{["7D", "30D", "1Y"].map((p) => <button type="button" className="chip" key={p} aria-pressed={p === period} onClick={() => setPeriod(p)}>{p}</button>)}</div>
     <p className="note">Rolling periods in UTC; 1Y is 365 days. Revenue is the recorded paid order total, not profit. Product revenue uses purchase-time item prices.</p>
-    {state.status === "loading" && <p role="status">Loading analytics…</p>}
-    {state.status === "error" && <p role="alert">Unable to load analytics. <button onClick={() => setRetry((n) => n + 1)}>Try again</button></p>}
+    {state.status === "loading" && <p role="status" aria-busy="true">Loading analytics…</p>}
+    {state.status === "error" && <p role="alert">Unable to load analytics. <button type="button" className="btn btn-secondary" onClick={() => setRetry((n) => n + 1)}>Try again</button></p>}
     {data && <>
       <dl className="metric-grid"><div><dt>Revenue</dt><dd>{formatCents(data.revenueCents)}</dd></div><div><dt>Orders</dt><dd>{data.orderCount}</dd></div><div><dt>Average order value</dt><dd>{data.averageOrderValueCents === null ? "Unavailable" : formatCents(data.averageOrderValueCents)}</dd></div><div><dt>Units sold</dt><dd>{data.unitsSold}</dd></div></dl>
       {data.revenueChangePercent !== null ? <p>{data.revenueChangePercent > 0 ? "+" : ""}{data.revenueChangePercent}% revenue vs previous {data.days} days.</p> : <p className="note">No percentage comparison: the previous period has no revenue.</p>}
